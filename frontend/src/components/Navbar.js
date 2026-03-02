@@ -12,8 +12,8 @@ const Navbar = () => {
 
   return (
     <nav className="navbar">
-      <Link to={isAdmin() ? "/admin" : "/dashboard"} className="navbar-brand">
-        <span>F1</span> Management
+      <Link to={isAdmin() ? "/admin" : "/dashboard"} className="navbar-brand" style={{ fontSize: "20px", fontWeight: "bold" }}>
+       Formula 1
       </Link>
 
       <div className="navbar-links">
