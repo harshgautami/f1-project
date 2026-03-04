@@ -60,23 +60,6 @@ const Login = () => {
         <div className="auth-link">
           Don't have an account? <Link to="/register">Sign Up</Link>
         </div>
-
-        <div
-          style={{
-            marginTop: "20px",
-            padding: "12px",
-            background: "var(--bg-primary)",
-            borderRadius: "var(--radius)",
-            fontSize: "12px",
-            color: "var(--text-muted)",
-          }}
-        >
-          <strong>Demo Accounts:</strong>
-          <br />
-          Admin: admin@f1management.com / admin123
-          <br />
-          User: user@f1management.com / user123
-        </div>
       </div>
     </div>
   );
