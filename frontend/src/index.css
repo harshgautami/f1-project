@@ -49,9 +49,32 @@ a:hover {
 
 /* ===== LAYOUT ===== */
 .app-container {
+  position: relative;
+  isolation: isolate;
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+}
+
+.app-container::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background-image: url("./assets/wp7429989.png");
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  z-index: -2;
+  opacity: 0.5;
+}
+
+.app-container::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.58);
+  pointer-events: none;
+  z-index: -1;
 }
 
 .main-content {
@@ -801,7 +824,6 @@ textarea.form-control {
   margin-top: 24px;
 }
 
-/* ===== RESPONSIVE ===== */
 @media (max-width: 768px) {
   .navbar {
     padding: 0 12px;
