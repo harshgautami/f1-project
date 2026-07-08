@@ -61,4 +61,8 @@ const raceSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
+// The calendar is queried by season (and filtered by status), ordered by round.
+raceSchema.index({ season: 1, round: 1 });
+raceSchema.index({ season: 1, status: 1 });
+
 module.exports = mongoose.model("Race", raceSchema);

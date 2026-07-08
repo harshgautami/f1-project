@@ -32,18 +32,22 @@ const driverSchema = new mongoose.Schema(
     worldChampionships: {
       type: Number,
       default: 0,
+      min: 0,
     },
     totalRaceWins: {
       type: Number,
       default: 0,
+      min: 0,
     },
     totalPodiums: {
       type: Number,
       default: 0,
+      min: 0,
     },
     totalPoints: {
       type: Number,
       default: 0,
+      min: 0,
     },
     seasonsActive: {
       type: String,
@@ -67,5 +71,8 @@ const driverSchema = new mongoose.Schema(
   },
   { timestamps: true },
 );
+
+// Drivers are commonly filtered by team.
+driverSchema.index({ team: 1 });
 
 module.exports = mongoose.model("Driver", driverSchema);

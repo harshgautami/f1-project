@@ -33,4 +33,7 @@ const raceHistorySchema = new mongoose.Schema(
   { timestamps: true },
 );
 
+// One document per season; list + ?year= lookups sort/filter on year.
+raceHistorySchema.index({ year: 1 });
+
 module.exports = mongoose.model("RaceHistory", raceHistorySchema);

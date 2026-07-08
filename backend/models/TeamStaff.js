@@ -41,4 +41,7 @@ const teamStaffSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
+// Staff lists are filtered by team and/or department.
+teamStaffSchema.index({ team: 1, department: 1 });
+
 module.exports = mongoose.model("TeamStaff", teamStaffSchema);

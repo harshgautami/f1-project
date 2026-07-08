@@ -37,4 +37,8 @@ const standingSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
+// Standings are almost always queried by season + type and shown ordered by
+// position (see UserStandings / dashboard) — index that access path.
+standingSchema.index({ season: 1, type: 1, position: 1 });
+
 module.exports = mongoose.model("Standing", standingSchema);
