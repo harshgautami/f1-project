@@ -1,0 +1,96 @@
+name: CI
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: Backend build & checks
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      # No bundler on the backend — validate that every source file parses.
+      - name: Syntax check
+        run: |
+          find . -path ./node_modules -prune -o -name '*.js' -print \
+            | xargs -I{} node --check "{}"
+      # Runs the test suite if one is defined; a no-op placeholder otherwise.
+      - name: Test
+        run: npm test --if-present
+
+  frontend:
+    name: Frontend build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm test --if-present
+      - run: npm run build
+
+  # Deploys ONLY the frontend to GitHub Pages. The Express backend is a server
+  # and cannot run on Pages — host it separately (e.g. Vercel via backend/vercel.json)
+  # and point the Pages build at it by setting the repo variable VITE_API_URL.
+  deploy-pages:
+    name: Deploy frontend to Pages
+    needs: [backend, frontend]
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    concurrency:
+      group: "pages"
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Build
+        working-directory: frontend
+        env:
+          # Project site is served under /<repo>/ — tell Vite so assets resolve.
+          VITE_BASE: /${{ github.event.repository.name }}/
+          # Backend URL; set this in Settings → Secrets and variables → Actions → Variables.
+          VITE_API_URL: ${{ vars.VITE_API_URL }}
+        run: |
+          npm ci
+          npm run build
+          # SPA fallback so client-side routes deep-link on Pages.
+          cp dist/index.html dist/404.html
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: frontend/dist
+      - id: deployment
+        uses: actions/deploy-pages@v4

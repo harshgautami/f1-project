@@ -23,10 +23,12 @@ Full-stack Formula 1 race and team management application with:
 
 ### Frontend
 
-- React
+- React 18
+- Vite (build tooling / dev server)
 - React Router
 - Axios
-- Recharts
+- Recharts (charts)
+- Framer Motion (animation)
 
 ## Prerequisites
 
@@ -44,9 +46,14 @@ JWT_EXPIRES_IN=7d
 PORT=5000
 NODE_ENV=development
 
-Optional frontend environment variable (only needed if your API is not on localhost:5000):
+Frontend environment variable (see `frontend/.env.example`):
 
-REACT_APP_API_URL=http://localhost:5000/api
+In development you normally don't need to set anything — Vite proxies `/api`
+to `http://localhost:5000` (configured in `frontend/vite.config.js`), so the
+app and API share one origin. For production, point the frontend at your
+deployed backend:
+
+VITE_API_URL=https://YOUR-BACKEND-DOMAIN.vercel.app/api
 
 ## Installation
 
@@ -72,7 +79,7 @@ npm run dev
 Terminal 2 (frontend):
 
 cd frontend
-npm start
+npm run dev
 
 - Frontend: http://localhost:3000
 - Backend API: http://localhost:5000/api
@@ -112,8 +119,9 @@ Base URL: /api
 
 ### Frontend (`frontend/package.json`)
 
-- npm start: Run frontend in development mode
-- npm run build: Build production frontend
+- npm run dev: Start the Vite dev server (http://localhost:3000)
+- npm run build: Build the production bundle into `frontend/dist`
+- npm run preview: Preview the production build locally
 
 ## Auth Notes
 
@@ -124,7 +132,19 @@ Base URL: /api
 ## Deployment
 
 - Backend includes `vercel.json` for Vercel Node deployment
+- Frontend is deployed to GitHub Pages by `.github/workflows/ci.yml` on pushes to `main`.
+  Set the repo variable `VITE_API_URL` (Settings → Secrets and variables → Actions →
+  Variables) to your deployed backend URL so the built frontend talks to it.
+- The Express backend is a server and cannot run on GitHub Pages — host it separately.
 - Ensure production environment variables are configured in your deployment provider
+
+## Continuous Integration
+
+`.github/workflows/ci.yml` runs on every push and pull request to `main`:
+
+- Backend: `npm ci` + a syntax check across all source files (+ `npm test` when present)
+- Frontend: `npm ci` + `npm run build` (+ `npm test` when present)
+- On `main`, the frontend is then built and deployed to GitHub Pages
 
 ## License
 
