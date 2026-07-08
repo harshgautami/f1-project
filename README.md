@@ -4,6 +4,9 @@ Full-stack Formula 1 race and team management application with:
 
 - Role-based authentication (admin and user)
 - Team, driver, race, standing, staff, and race history modules
+- Live Race Tracker — an animated circuit + real-time standings that reorder the
+  instant a driver overtakes (see `/live`)
+- Search, driver/team images, a season selector, and live F1 data sync
 - React frontend + Node.js/Express backend + MongoDB
 
 ## Project Structure
@@ -115,7 +118,9 @@ Base URL: /api
 
 - npm start: Start server with Node
 - npm run dev: Start server with nodemon
-- npm run seed: Seed sample data
+- npm run seed: Seed sample data (destructive — clears collections first)
+- npm run sync [season]: Pull real F1 data from the Jolpica API and upsert it
+  (non-destructive; add `--dry-run` to preview without writing). Defaults to 2024.
 - npm test: Run the Jest + supertest test suite (uses an in-memory MongoDB)
 
 ### Frontend (`frontend/package.json`)
