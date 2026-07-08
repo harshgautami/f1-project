@@ -9,6 +9,7 @@ import {
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { AnimatePresence } from "./components/motion";
 import Navbar from "./components/Navbar";
+import StartLights from "./components/StartLights";
 import { Loader } from "./components/ui";
 
 // Auth pages load eagerly (first paint); everything else is code-split so the
@@ -87,15 +88,33 @@ const AppRoutes = () => {
 };
 
 export default function App() {
+  // Play the "lights out" intro once per browser session.
+  const [intro, setIntro] = React.useState(
+    () => !sessionStorage.getItem("f1_intro"),
+  );
   return (
     <AuthProvider>
       <Router basename={import.meta.env.BASE_URL}>
         <div className="app-container">
+          <div className="fx-streaks" aria-hidden="true" />
           <Navbar />
           <div className="main-content">
             <AppRoutes />
           </div>
         </div>
+        <AnimatePresence>
+          {intro && (
+            <StartLights
+              key="intro"
+              interval={340}
+              label="Formula 1 · Management"
+              onComplete={() => {
+                sessionStorage.setItem("f1_intro", "1");
+                setIntro(false);
+              }}
+            />
+          )}
+        </AnimatePresence>
       </Router>
     </AuthProvider>
   );

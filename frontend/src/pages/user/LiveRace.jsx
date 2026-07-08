@@ -2,8 +2,9 @@ import React, { useState, useMemo } from "react";
 import API from "../../api";
 import { useFetch } from "../../hooks/useFetch";
 import { useRaceSimulation } from "../../hooks/useRaceSimulation";
-import { PageTransition, motion } from "../../components/motion";
+import { PageTransition, motion, AnimatePresence } from "../../components/motion";
 import { PageHeader, Loader, EmptyState } from "../../components/ui";
+import StartLights from "../../components/StartLights";
 import TrackMap from "../../components/TrackMap";
 import { getCircuit } from "../../data/circuits";
 import { RACE_SEASON } from "../../config/season";
@@ -25,14 +26,28 @@ function RaceSim({ drivers, race }) {
     setSpeed,
   } = useRaceSimulation(drivers, { totalLaps });
 
+  const [launching, setLaunching] = useState(false);
+  const handleStart = () => (running ? pause() : setLaunching(true));
+
   return (
     <div className="live-grid">
+      <AnimatePresence>
+        {launching && (
+          <StartLights
+            label={race?.name || "Formation lap"}
+            onComplete={() => {
+              setLaunching(false);
+              start();
+            }}
+          />
+        )}
+      </AnimatePresence>
       <div>
         <div className="live-controls">
           <button
             className={`btn ${running ? "btn-secondary" : "btn-primary"}`}
-            onClick={running ? pause : start}
-            disabled={finished}
+            onClick={handleStart}
+            disabled={finished || launching}
           >
             {running ? "⏸ Pause" : finished ? "Finished" : "▶ Start Race"}
           </button>

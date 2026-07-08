@@ -1508,3 +1508,139 @@ textarea.form-control {
 .search-bar input::placeholder {
   color: var(--text-muted);
 }
+
+/* ===== F1 START LIGHTS ===== */
+.lights-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 34px;
+  background: rgba(5, 5, 10, 0.94);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+.lights-gantry {
+  display: flex;
+  gap: 16px;
+  padding: 20px 24px;
+  background: linear-gradient(#0e0e16, #07070c);
+  border: 1px solid var(--border-light);
+  border-radius: 16px;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6);
+}
+.light-col {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 10px;
+  background: #0a0a10;
+  border-radius: 10px;
+}
+.light {
+  width: clamp(26px, 5vw, 52px);
+  height: clamp(26px, 5vw, 52px);
+  border-radius: 50%;
+  background: radial-gradient(circle at 40% 35%, #2a0d0d, #120607);
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.8);
+}
+.light.on {
+  background: radial-gradient(circle at 40% 35%, #ff6a5a, #e10600 55%, #7a0300);
+  box-shadow:
+    0 0 24px 7px rgba(225, 6, 0, 0.75),
+    inset 0 0 8px rgba(255, 190, 170, 0.6);
+}
+.lights-go {
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-style: italic;
+  font-size: clamp(40px, 9vw, 104px);
+  letter-spacing: 2px;
+  color: #37f26e;
+  text-shadow: 0 0 44px rgba(55, 242, 110, 0.7);
+}
+.lights-label {
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  letter-spacing: 3px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+/* ===== AMBIENT SPEED STREAKS ===== */
+.fx-streaks {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  overflow: hidden;
+}
+.fx-streaks::before,
+.fx-streaks::after {
+  content: "";
+  position: absolute;
+  top: 12%;
+  left: 0;
+  width: 42%;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, rgba(225, 6, 0, 0.55), transparent);
+  filter: blur(1px);
+  transform: rotate(16deg) translateX(-60vw);
+  animation: streak 8s linear infinite;
+}
+.fx-streaks::after {
+  top: auto;
+  bottom: 16%;
+  background: linear-gradient(90deg, transparent, rgba(120, 180, 255, 0.4), transparent);
+  animation-duration: 11s;
+  animation-delay: 3s;
+}
+@keyframes streak {
+  0% {
+    transform: rotate(16deg) translateX(-60vw);
+    opacity: 0;
+  }
+  12% {
+    opacity: 1;
+  }
+  88% {
+    opacity: 1;
+  }
+  100% {
+    transform: rotate(16deg) translateX(180vw);
+    opacity: 0;
+  }
+}
+
+/* ===== KINETIC TITLE WIPE (runs each time a page mounts) ===== */
+.page-header h1 {
+  animation: titleWipe 0.7s var(--ease-out) both;
+}
+@keyframes titleWipe {
+  from {
+    clip-path: inset(0 100% 0 0);
+    transform: translateX(-14px);
+    opacity: 0;
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+    transform: none;
+    opacity: 1;
+  }
+}
+.eyebrow {
+  animation: fadeIn 0.6s var(--ease-out) 0.1s both;
+}
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
