@@ -3,7 +3,7 @@ import API from "../../api";
 import { useFetch } from "../../hooks/useFetch";
 import { PageTransition, Reveal } from "../../components/motion";
 import { PageHeader, Loader, EmptyState, Tabs } from "../../components/ui";
-import { STANDINGS_SEASON } from "../../config/season";
+import { STANDINGS_SEASON, STANDINGS_SEASONS } from "../../config/season";
 import {
   ResponsiveContainer,
   BarChart,
@@ -17,17 +17,18 @@ import {
 
 function UserStandings() {
   const [activeTab, setActiveTab] = useState("driver");
+  const [season, setSeason] = useState(STANDINGS_SEASON);
 
   const { data, loading, error } = useFetch(
     () =>
       Promise.all([
-        API.get(`/standings?season=${STANDINGS_SEASON}&type=driver`),
-        API.get(`/standings?season=${STANDINGS_SEASON}&type=constructor`),
+        API.get(`/standings?season=${season}&type=driver`),
+        API.get(`/standings?season=${season}&type=constructor`),
       ]).then(([dRes, cRes]) => ({
         driver: dRes.data,
         constructor: cRes.data,
       })),
-    []
+    [season]
   );
 
   const standings =
@@ -42,11 +43,21 @@ function UserStandings() {
   return (
     <PageTransition>
       <PageHeader
-        eyebrow={`${STANDINGS_SEASON} Championship`}
+        eyebrow={`${season} Championship`}
         accent="CHAMPIONSHIP"
         title="Standings"
-        subtitle={`Final classification of the ${STANDINGS_SEASON} season`}
+        subtitle={`Final classification of the ${season} season`}
       />
+
+      <div className="filter-bar">
+        <select value={season} onChange={(e) => setSeason(Number(e.target.value))}>
+          {STANDINGS_SEASONS.map((s) => (
+            <option key={s} value={s}>
+              {s} Season
+            </option>
+          ))}
+        </select>
+      </div>
 
       <Tabs
         tabs={[
@@ -69,7 +80,7 @@ function UserStandings() {
         <EmptyState
           icon="🏁"
           title="No standings yet"
-          message={`No ${activeTab} standings are available for ${STANDINGS_SEASON}.`}
+          message={`No ${activeTab} standings are available for ${season}.`}
         />
       ) : (
         <>

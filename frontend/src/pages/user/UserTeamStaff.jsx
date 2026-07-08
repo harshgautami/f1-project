@@ -12,6 +12,7 @@ import {
   Loader,
   EmptyState,
   StatCard,
+  SearchBar,
   teamAccent,
 } from "../../components/ui";
 
@@ -29,6 +30,7 @@ const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 export default function UserTeamStaff() {
   const [filterTeam, setFilterTeam] = useState("");
   const [filterDept, setFilterDept] = useState("");
+  const [q, setQ] = useState("");
 
   const { data, loading, error } = useFetch(
     () => Promise.all([API.get("/team-staff"), API.get("/teams")]),
@@ -40,9 +42,17 @@ export default function UserTeamStaff() {
   const staff = data?.[0]?.data || [];
   const teams = data?.[1]?.data || [];
 
+  const query = q.trim().toLowerCase();
   const filtered = staff.filter((s) => {
     if (filterTeam && s.team?._id !== filterTeam) return false;
     if (filterDept && s.department !== filterDept) return false;
+    if (query) {
+      const haystack = [s.name, s.role, s.nationality]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      if (!haystack.includes(query)) return false;
+    }
     return true;
   });
 
@@ -74,6 +84,11 @@ export default function UserTeamStaff() {
       />
 
       <div className="filter-bar">
+        <SearchBar
+          value={q}
+          onChange={setQ}
+          placeholder="Search by name, role or nationality…"
+        />
         <select
           className="form-control"
           style={{ width: "auto" }}

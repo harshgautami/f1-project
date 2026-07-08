@@ -24,6 +24,7 @@ const UserRaces = lazy(() => import("./pages/user/UserRaces"));
 const UserStandings = lazy(() => import("./pages/user/UserStandings"));
 const UserRaceHistory = lazy(() => import("./pages/user/UserRaceHistory"));
 const UserTeamStaff = lazy(() => import("./pages/user/UserTeamStaff"));
+const LiveRace = lazy(() => import("./pages/user/LiveRace"));
 const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard"));
 const AdminTeams = lazy(() => import("./pages/admin/AdminTeams"));
 const AdminDrivers = lazy(() => import("./pages/admin/AdminDrivers"));
@@ -67,6 +68,7 @@ const AppRoutes = () => {
           <Route path="/standings" element={protect(<UserStandings />)} />
           <Route path="/history" element={protect(<UserRaceHistory />)} />
           <Route path="/team-staff" element={protect(<UserTeamStaff />)} />
+          <Route path="/live" element={protect(<LiveRace />)} />
 
           {/* Admin */}
           <Route path="/admin" element={protect(<AdminDashboard />, true)} />

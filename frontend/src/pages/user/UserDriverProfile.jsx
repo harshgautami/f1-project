@@ -14,7 +14,7 @@ import {
 import API from "../../api";
 import { useFetch } from "../../hooks/useFetch";
 import { PageTransition, Reveal, AnimatedNumber } from "../../components/motion";
-import { Loader, EmptyState, StatCard, SectionTitle, teamAccent } from "../../components/ui";
+import { Loader, EmptyState, StatCard, SectionTitle, teamAccent, Avatar } from "../../components/ui";
 import * as Icons from "../../components/Icons";
 
 const tooltipStyle = {
@@ -74,6 +74,13 @@ export default function UserDriverProfile() {
         className="driver-profile-header"
         style={teamAccent(driver.team?.color)}
       >
+        <Avatar
+          src={driver.imageUrl}
+          name={`${driver.firstName} ${driver.lastName}`}
+          color={driver.team?.color}
+          size={96}
+          rounded="16px"
+        />
         <div className="driver-profile-number">{driver.number}</div>
         <div className="driver-profile-name">
           <h1>

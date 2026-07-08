@@ -2,10 +2,18 @@ import React from "react";
 import API from "../../api";
 import { useFetch } from "../../hooks/useFetch";
 import { PageTransition, Stagger, StaggerItem } from "../../components/motion";
-import { PageHeader, Loader, EmptyState, teamAccent } from "../../components/ui";
+import {
+  PageHeader,
+  Loader,
+  EmptyState,
+  teamAccent,
+  SearchBar,
+  Avatar,
+} from "../../components/ui";
 
 export default function UserTeams() {
   const { data, loading, error } = useFetch(() => API.get("/teams"), []);
+  const [q, setQ] = React.useState("");
 
   const teams = React.useMemo(() => {
     const list = data?.data ?? [];
@@ -15,6 +23,16 @@ export default function UserTeams() {
         (a.name || "").localeCompare(b.name || "")
     );
   }, [data]);
+
+  const filteredTeams = React.useMemo(() => {
+    const term = q.trim().toLowerCase();
+    if (!term) return teams;
+    return teams.filter((t) =>
+      [t.name, t.fullName, t.base]
+        .filter(Boolean)
+        .some((field) => field.toLowerCase().includes(term))
+    );
+  }, [teams, q]);
 
   return (
     <PageTransition>
@@ -44,57 +62,84 @@ export default function UserTeams() {
           message="Team data will appear here once it's available."
         />
       ) : (
-        <Stagger className="card-grid">
-          {teams.map((t) => (
-            <StaggerItem key={t._id}>
-              <div className="team-card" style={teamAccent(t.color)}>
-                <div
-                  className="team-card-top"
-                  style={{ background: t.color || "var(--team-accent)" }}
-                />
-                <div className="team-card-body">
-                  <h3>{t.name}</h3>
-                  <div className="team-full-name">{t.fullName}</div>
+        <>
+          <div className="filter-bar">
+            <SearchBar
+              value={q}
+              onChange={setQ}
+              placeholder="Search teams…"
+            />
+          </div>
 
-                  <div className="team-detail-row">
-                    <span className="label">Base</span>
-                    <span>{t.base || "—"}</span>
+          {filteredTeams.length === 0 ? (
+            <EmptyState
+              icon="🔍"
+              title="No teams found"
+              message="Try adjusting your search."
+            />
+          ) : (
+            <Stagger className="card-grid">
+              {filteredTeams.map((t) => (
+                <StaggerItem key={t._id}>
+                  <div className="team-card" style={teamAccent(t.color)}>
+                    <div
+                      className="team-card-top"
+                      style={{ background: t.color || "var(--team-accent)" }}
+                    />
+                    <div className="team-card-body">
+                      <h3>
+                        <Avatar
+                          src={t.logoUrl}
+                          name={t.name}
+                          color={t.color}
+                          size={40}
+                          rounded="10px"
+                        />
+                        {t.name}
+                      </h3>
+                      <div className="team-full-name">{t.fullName}</div>
+
+                      <div className="team-detail-row">
+                        <span className="label">Base</span>
+                        <span>{t.base || "—"}</span>
+                      </div>
+                      <div className="team-detail-row">
+                        <span className="label">Principal</span>
+                        <span>{t.teamPrincipal || "—"}</span>
+                      </div>
+                      <div className="team-detail-row">
+                        <span className="label">Power Unit</span>
+                        <span>{t.powerUnit || "—"}</span>
+                      </div>
+                      <div className="team-detail-row">
+                        <span className="label">Chassis</span>
+                        <span>{t.chassis || "—"}</span>
+                      </div>
+                      <div className="team-detail-row">
+                        <span className="label">First Entry</span>
+                        <span>{t.firstEntry || "—"}</span>
+                      </div>
+                      <div className="team-detail-row">
+                        <span className="label">Titles</span>
+                        <span
+                          style={{
+                            color:
+                              t.worldChampionships > 0
+                                ? "var(--accent-red)"
+                                : "var(--text-secondary)",
+                            fontWeight: 700,
+                          }}
+                        >
+                          {t.worldChampionships ?? 0}
+                        </span>
+                      </div>
+                    </div>
                   </div>
-                  <div className="team-detail-row">
-                    <span className="label">Principal</span>
-                    <span>{t.teamPrincipal || "—"}</span>
-                  </div>
-                  <div className="team-detail-row">
-                    <span className="label">Power Unit</span>
-                    <span>{t.powerUnit || "—"}</span>
-                  </div>
-                  <div className="team-detail-row">
-                    <span className="label">Chassis</span>
-                    <span>{t.chassis || "—"}</span>
-                  </div>
-                  <div className="team-detail-row">
-                    <span className="label">First Entry</span>
-                    <span>{t.firstEntry || "—"}</span>
-                  </div>
-                  <div className="team-detail-row">
-                    <span className="label">Titles</span>
-                    <span
-                      style={{
-                        color:
-                          t.worldChampionships > 0
-                            ? "var(--accent-red)"
-                            : "var(--text-secondary)",
-                        fontWeight: 700,
-                      }}
-                    >
-                      {t.worldChampionships ?? 0}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </StaggerItem>
-          ))}
-        </Stagger>
+                </StaggerItem>
+              ))}
+            </Stagger>
+          )}
+        </>
       )}
     </PageTransition>
   );

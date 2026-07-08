@@ -1,5 +1,6 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { motion, AnimatePresence, useReducedMotion, AnimatedNumber } from "./motion";
+import { IconSearch } from "./Icons";
 
 /* ---------------------------------------------------------------------------
    Shared, styled UI building blocks. Pages compose these instead of
@@ -103,6 +104,74 @@ export function Field({ label, hint, required, children }) {
 
 export function SectionTitle({ children }) {
   return <h2 className="chart-title">{children}</h2>;
+}
+
+/** Image with a graceful initials fallback (used until real image URLs exist). */
+export function Avatar({ src, name = "", color = "#e10600", size = 44, rounded = "50%" }) {
+  const [failed, setFailed] = useState(false);
+  const initials =
+    name
+      .split(" ")
+      .map((w) => w[0])
+      .filter(Boolean)
+      .slice(0, 2)
+      .join("")
+      .toUpperCase() || "—";
+
+  if (src && !failed) {
+    return (
+      <img
+        src={src}
+        alt={name}
+        onError={() => setFailed(true)}
+        style={{
+          width: size,
+          height: size,
+          objectFit: "cover",
+          borderRadius: rounded,
+          background: "var(--bg-primary)",
+          flex: "none",
+        }}
+      />
+    );
+  }
+  return (
+    <span
+      aria-hidden="true"
+      style={{
+        width: size,
+        height: size,
+        borderRadius: rounded,
+        display: "inline-grid",
+        placeItems: "center",
+        background: `${color}22`,
+        color,
+        fontWeight: 800,
+        fontFamily: "var(--font-display)",
+        fontSize: Math.round(size * 0.36),
+        border: `1px solid ${color}55`,
+        flex: "none",
+      }}
+    >
+      {initials}
+    </span>
+  );
+}
+
+/** Styled text search box. */
+export function SearchBar({ value, onChange, placeholder = "Search…" }) {
+  return (
+    <div className="search-bar">
+      <IconSearch />
+      <input
+        type="search"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        aria-label={placeholder}
+      />
+    </div>
+  );
 }
 
 /** Animated, accessible modal dialog (ESC to close, click-away, scroll lock). */

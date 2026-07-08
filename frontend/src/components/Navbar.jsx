@@ -17,6 +17,7 @@ const USER_LINKS = [
   ["/teams", "Teams"],
   ["/drivers", "Drivers"],
   ["/races", "Races"],
+  ["/live", "Live"],
   ["/standings", "Standings"],
   ["/history", "History"],
   ["/team-staff", "Staff"],

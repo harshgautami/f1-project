@@ -1,13 +1,21 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { Link } from "react-router-dom";
 import API from "../../api";
 import { useFetch } from "../../hooks/useFetch";
 import { PageTransition, Stagger, StaggerItem } from "../../components/motion";
-import { PageHeader, Loader, EmptyState, teamAccent } from "../../components/ui";
+import {
+  PageHeader,
+  Loader,
+  EmptyState,
+  teamAccent,
+  SearchBar,
+  Avatar,
+} from "../../components/ui";
 import * as Icons from "../../components/Icons";
 
 export default function UserDrivers() {
   const [filterTeam, setFilterTeam] = useState("");
+  const [q, setQ] = useState("");
 
   const {
     data: drivers,
@@ -24,9 +32,16 @@ export default function UserDrivers() {
 
   const all = drivers || [];
   const teamList = teams || [];
-  const filtered = filterTeam
-    ? all.filter((d) => d.team?._id === filterTeam)
-    : all;
+  const filtered = useMemo(() => {
+    const term = q.trim().toLowerCase();
+    return all.filter((d) => {
+      if (filterTeam && d.team?._id !== filterTeam) return false;
+      if (!term) return true;
+      return [d.firstName, d.lastName, d.nationality]
+        .filter(Boolean)
+        .some((v) => String(v).toLowerCase().includes(term));
+    });
+  }, [all, filterTeam, q]);
 
   return (
     <PageTransition>
@@ -46,6 +61,11 @@ export default function UserDrivers() {
       ) : (
         <>
           <div className="filter-bar">
+            <SearchBar
+              value={q}
+              onChange={setQ}
+              placeholder="Search by name or nationality…"
+            />
             <select
               className="form-control"
               style={{ width: "auto" }}
@@ -86,6 +106,12 @@ export default function UserDrivers() {
                     className="driver-card"
                     style={teamAccent(driver.team?.color)}
                   >
+                    <Avatar
+                      src={driver.imageUrl}
+                      name={`${driver.firstName} ${driver.lastName}`}
+                      color={driver.team?.color}
+                      size={52}
+                    />
                     <div className="driver-info" style={{ flex: 1 }}>
                       <div
                         style={{

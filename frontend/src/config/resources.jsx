@@ -1,5 +1,6 @@
 import React from "react";
 import { RACE_SEASON, STANDINGS_SEASON, SEASONS, STANDINGS_SEASONS } from "./season";
+import { Avatar } from "../components/ui";
 
 /* Declarative definitions for every admin CRUD screen. Consumed by
    <ResourceManager config={...} />. */
@@ -64,9 +65,17 @@ export const driversConfig = {
       key: "name",
       label: "Driver",
       render: (r) => (
-        <strong style={{ color: "var(--text-primary)" }}>
-          {r.firstName} {r.lastName}
-        </strong>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 10 }}>
+          <Avatar
+            src={r.imageUrl}
+            name={`${r.firstName} ${r.lastName}`}
+            color={r.team?.color}
+            size={30}
+          />
+          <strong style={{ color: "var(--text-primary)" }}>
+            {r.firstName} {r.lastName}
+          </strong>
+        </span>
       ),
     },
     { key: "team", label: "Team", render: (r) => <TeamCell team={r.team} /> },
@@ -114,6 +123,7 @@ export const driversConfig = {
     { key: "totalPodiums", label: "Total Podiums", type: "number", min: 0, half: true },
     { key: "totalPoints", label: "Total Points", type: "number", min: 0, half: true },
     { key: "seasonsActive", label: "Seasons Active", type: "text", placeholder: "e.g. 2015–present" },
+    { key: "imageUrl", label: "Photo URL", type: "text", placeholder: "https://…" },
     { key: "biography", label: "Biography", type: "textarea" },
   ],
   emptyForm: {
@@ -128,6 +138,7 @@ export const driversConfig = {
     totalPodiums: 0,
     totalPoints: 0,
     seasonsActive: "",
+    imageUrl: "",
     biography: "",
   },
 };
@@ -174,7 +185,8 @@ export const teamsConfig = {
     { key: "chassis", label: "Chassis", type: "text", half: true },
     { key: "firstEntry", label: "First Entry", type: "number", min: 1900, max: 2100, half: true },
     { key: "worldChampionships", label: "World Championships", type: "number", min: 0, half: true },
-    { key: "color", label: "Team Color", type: "color" },
+    { key: "color", label: "Team Color", type: "color", half: true },
+    { key: "logoUrl", label: "Logo URL", type: "text", placeholder: "https://…", half: true },
   ],
   emptyForm: {
     name: "",
@@ -186,6 +198,7 @@ export const teamsConfig = {
     firstEntry: "",
     worldChampionships: 0,
     color: "#e10600",
+    logoUrl: "",
   },
 };
 
