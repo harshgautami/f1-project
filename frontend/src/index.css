@@ -1376,10 +1376,10 @@ textarea.form-control {
   fill: #fff;
   font-family: var(--font-display);
   font-weight: 800;
-  font-size: 9px;
+  font-size: 11px;
   paint-order: stroke;
-  stroke: rgba(0, 0, 0, 0.5);
-  stroke-width: 0.5px;
+  stroke: rgba(0, 0, 0, 0.55);
+  stroke-width: 0.6px;
 }
 .track-name {
   position: absolute;

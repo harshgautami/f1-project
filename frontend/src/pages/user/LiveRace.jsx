@@ -5,6 +5,7 @@ import { useRaceSimulation } from "../../hooks/useRaceSimulation";
 import { PageTransition, motion } from "../../components/motion";
 import { PageHeader, Loader, EmptyState } from "../../components/ui";
 import TrackMap from "../../components/TrackMap";
+import { getCircuit } from "../../data/circuits";
 import { RACE_SEASON } from "../../config/season";
 import { IconChart } from "../../components/Icons";
 
@@ -58,7 +59,7 @@ function RaceSim({ drivers, race }) {
 
         <TrackMap
           cars={snapshot}
-          variant={(race?.round || 1) - 1}
+          path={getCircuit(race?.circuit, race?.city, race?.country)?.d}
           name={race?.name}
         />
 
