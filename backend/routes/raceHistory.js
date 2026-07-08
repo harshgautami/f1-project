@@ -1,73 +1,27 @@
-const express = require("express");
-const router = express.Router();
+const { body } = require("express-validator");
 const RaceHistory = require("../models/RaceHistory");
-const { auth, adminOnly } = require("../middleware/auth");
+const crudRouter = require("../utils/crudRouter");
 
-// GET all race history
-router.get("/", async (req, res) => {
-  try {
-    const history = await RaceHistory.find().sort({ year: 1 });
-    res.json(history);
-  } catch (error) {
-    res.status(500).json({ message: "Server error", error: error.message });
-  }
+// Presence of required fields is enforced by the Mongoose schema; these add
+// format checks on top and apply to both create and update.
+const validators = [
+  body("year").optional().isInt({ min: 1950, max: 2100 }),
+  body("totalRaces").optional().isInt({ min: 0 }),
+  body("champion").optional().trim().notEmpty(),
+  body("championTeam").optional().trim().notEmpty(),
+  body("constructorChampion").optional().trim().notEmpty(),
+  body("teamWins").optional().isArray(),
+];
+
+// Previously a hand-rolled router with its own try/catch in every handler.
+// Now consistent with every other resource: shared CRUD, admin-guarded writes,
+// centralized error handling. The old GET /:year lookup becomes ?year= on the
+// list route (the only race-history endpoint the frontend actually calls).
+module.exports = crudRouter({
+  model: RaceHistory,
+  name: "Race history",
+  sort: { year: 1 },
+  getOne: false,
+  listFilters: [{ param: "year", field: "year", cast: (v) => parseInt(v) }],
+  validators,
 });
-
-// GET by year
-router.get("/:year", async (req, res) => {
-  try {
-    const history = await RaceHistory.findOne({
-      year: parseInt(req.params.year),
-    });
-    if (!history)
-      return res.status(404).json({ message: "Race history not found" });
-    res.json(history);
-  } catch (error) {
-    res.status(500).json({ message: "Server error", error: error.message });
-  }
-});
-
-// POST create (admin only)
-router.post("/", auth, adminOnly, async (req, res) => {
-  try {
-    const history = new RaceHistory(req.body);
-    await history.save();
-    res.status(201).json(history);
-  } catch (error) {
-    res
-      .status(400)
-      .json({ message: "Error creating race history", error: error.message });
-  }
-});
-
-// PUT update (admin only)
-router.put("/:id", auth, adminOnly, async (req, res) => {
-  try {
-    const history = await RaceHistory.findByIdAndUpdate(
-      req.params.id,
-      req.body,
-      { new: true, runValidators: true },
-    );
-    if (!history)
-      return res.status(404).json({ message: "Race history not found" });
-    res.json(history);
-  } catch (error) {
-    res
-      .status(400)
-      .json({ message: "Error updating race history", error: error.message });
-  }
-});
-
-// DELETE (admin only)
-router.delete("/:id", auth, adminOnly, async (req, res) => {
-  try {
-    const history = await RaceHistory.findByIdAndDelete(req.params.id);
-    if (!history)
-      return res.status(404).json({ message: "Race history not found" });
-    res.json({ message: "Race history deleted successfully" });
-  } catch (error) {
-    res.status(500).json({ message: "Server error", error: error.message });
-  }
-});
-
-module.exports = router;

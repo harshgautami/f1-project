@@ -1,5 +1,6 @@
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
+const { env } = require("../config/env");
 
 // Verify JWT token
 const auth = async (req, res, next) => {
@@ -10,7 +11,7 @@ const auth = async (req, res, next) => {
         .status(401)
         .json({ message: "No token, authorization denied" });
     }
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, env.jwtSecret);
     const user = await User.findById(decoded.id).select("-password");
     if (!user) {
       return res.status(401).json({ message: "Token is not valid" });

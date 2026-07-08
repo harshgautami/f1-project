@@ -1,30 +1,48 @@
 const express = require("express");
 const cors = require("cors");
-const dotenv = require("dotenv");
-const connectDB = require("./config/db");
+const helmet = require("helmet");
 
-dotenv.config();
+const { env, validateEnv } = require("./config/env");
+const connectDB = require("./config/db");
+const { apiLimiter } = require("./middleware/rateLimiter");
+const { notFound, errorHandler } = require("./middleware/errorHandler");
+
+// Fail fast if required secrets are missing.
+validateEnv();
 
 const app = express();
 
 // Connect to MongoDB
 connectDB();
 
-// Middleware
-app.use(cors());
-app.use(express.json());
+// Security headers
+app.use(helmet());
+
+// Restrict cross-origin access to the configured client origin(s).
+app.use(
+  cors({
+    origin: env.clientUrls,
+    credentials: true,
+  }),
+);
+
+// Body parsing with a sane size limit to reduce abuse surface.
+app.use(express.json({ limit: "1mb" }));
+
+// Request logging
 app.use((req, res, next) => {
   const start = Date.now();
-
   res.on("finish", () => {
     const duration = Date.now() - start;
     console.log(
       `${req.method} ${req.originalUrl} ${res.statusCode} ${duration} ms`,
     );
   });
-
   next();
 });
+
+// Rate limiting across the API (auth routes add a stricter limiter of their own)
+app.use("/api", apiLimiter);
 
 // Routes
 app.use("/api/auth", require("./routes/auth"));
@@ -40,19 +58,13 @@ app.get("/api/health", (req, res) => {
   res.json({ status: "OK", message: "F1 Management API is running" });
 });
 
-// Error handling middleware
-app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res
-    .status(500)
-    .json({ message: "Something went wrong!", error: err.message });
-});
-
-const PORT = process.env.PORT || 5000;
+// 404 + centralized error handling (must be last)
+app.use(notFound);
+app.use(errorHandler);
 
 if (require.main === module) {
-  app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+  app.listen(env.port, () => {
+    console.log(`Server running on port ${env.port}`);
   });
 }
 

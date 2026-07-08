@@ -1,7 +1,5 @@
 const mongoose = require("mongoose");
-const dotenv = require("dotenv");
-
-dotenv.config();
+const { env } = require("./env");
 
 const connectDB = async () => {
   try {
@@ -9,12 +7,12 @@ const connectDB = async () => {
       return;
     }
 
-    await mongoose.connect(process.env.MONGODB_URI);
+    await mongoose.connect(env.mongoUri);
     console.log("MongoDB connected successfully");
   } catch (error) {
     console.error("MongoDB connection error:", error.message);
 
-    if (process.env.NODE_ENV !== "production") {
+    if (!env.isProduction) {
       process.exit(1);
     }
 

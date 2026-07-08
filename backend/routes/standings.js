@@ -1,62 +1,24 @@
-const express = require("express");
-const router = express.Router();
+const { body } = require("express-validator");
 const Standing = require("../models/Standing");
-const { auth, adminOnly } = require("../middleware/auth");
+const crudRouter = require("../utils/crudRouter");
 
-// GET standings
-router.get("/", async (req, res) => {
-  try {
-    const { season, type } = req.query;
-    let query = {};
-    if (season) query.season = parseInt(season);
-    if (type) query.type = type;
-    const standings = await Standing.find(query).sort({ position: 1 });
-    res.json(standings);
-  } catch (error) {
-    res.status(500).json({ message: "Server error", error: error.message });
-  }
+const validators = [
+  body("season").optional().isInt({ min: 1950, max: 2100 }),
+  body("type").optional().isIn(["driver", "constructor"]),
+  body("position").optional().isInt({ min: 1 }),
+  body("name").optional().trim().notEmpty(),
+  body("points").optional().isFloat({ min: 0 }),
+  body("wins").optional().isInt({ min: 0 }),
+];
+
+module.exports = crudRouter({
+  model: Standing,
+  name: "Standing",
+  listFilters: [
+    { param: "season", field: "season", cast: (v) => parseInt(v) },
+    { param: "type", field: "type" },
+  ],
+  sort: { position: 1 },
+  getOne: false,
+  validators,
 });
-
-// POST create standing (admin only)
-router.post("/", auth, adminOnly, async (req, res) => {
-  try {
-    const standing = new Standing(req.body);
-    await standing.save();
-    res.status(201).json(standing);
-  } catch (error) {
-    res
-      .status(400)
-      .json({ message: "Error creating standing", error: error.message });
-  }
-});
-
-// PUT update standing (admin only)
-router.put("/:id", auth, adminOnly, async (req, res) => {
-  try {
-    const standing = await Standing.findByIdAndUpdate(req.params.id, req.body, {
-      new: true,
-      runValidators: true,
-    });
-    if (!standing)
-      return res.status(404).json({ message: "Standing not found" });
-    res.json(standing);
-  } catch (error) {
-    res
-      .status(400)
-      .json({ message: "Error updating standing", error: error.message });
-  }
-});
-
-// DELETE standing (admin only)
-router.delete("/:id", auth, adminOnly, async (req, res) => {
-  try {
-    const standing = await Standing.findByIdAndDelete(req.params.id);
-    if (!standing)
-      return res.status(404).json({ message: "Standing not found" });
-    res.json({ message: "Standing deleted successfully" });
-  } catch (error) {
-    res.status(500).json({ message: "Server error", error: error.message });
-  }
-});
-
-module.exports = router;
