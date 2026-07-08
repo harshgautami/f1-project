@@ -37,7 +37,10 @@ const CHART_TOOLTIP = {
 };
 
 export default function UserRaceHistory() {
-  const { data, loading, error } = useFetch(() => API.get("/race-history"), []);
+  const { data, loading, error } = useFetch(
+    () => API.get("/race-history").then((r) => r.data),
+    [],
+  );
 
   const seasons = [...(data || [])].sort((a, b) => b.year - a.year);
   const [view, setView] = useState("cards");

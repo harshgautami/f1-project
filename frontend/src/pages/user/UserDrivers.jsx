@@ -28,8 +28,7 @@ export default function UserDrivers() {
     []
   );
 
-  if (driversLoading) return <Loader label="Loading the grid…" />;
-
+  // NOTE: all hooks must run before any early return (Rules of Hooks).
   const all = drivers || [];
   const teamList = teams || [];
   const filtered = useMemo(() => {
@@ -42,6 +41,8 @@ export default function UserDrivers() {
         .some((v) => String(v).toLowerCase().includes(term));
     });
   }, [all, filterTeam, q]);
+
+  if (driversLoading) return <Loader label="Loading the grid…" />;
 
   return (
     <PageTransition>
