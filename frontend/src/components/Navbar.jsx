@@ -10,6 +10,7 @@ const ADMIN_LINKS = [
   ["/admin/races", "Races"],
   ["/admin/standings", "Standings"],
   ["/admin/staff", "Staff"],
+  ["/live", "Live"],
 ];
 
 const USER_LINKS = [
