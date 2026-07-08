@@ -116,12 +116,14 @@ Base URL: /api
 - npm start: Start server with Node
 - npm run dev: Start server with nodemon
 - npm run seed: Seed sample data
+- npm test: Run the Jest + supertest test suite (uses an in-memory MongoDB)
 
 ### Frontend (`frontend/package.json`)
 
 - npm run dev: Start the Vite dev server (http://localhost:3000)
 - npm run build: Build the production bundle into `frontend/dist`
 - npm run preview: Preview the production build locally
+- npm test: Run the Vitest + Testing Library unit tests
 
 ## Auth Notes
 

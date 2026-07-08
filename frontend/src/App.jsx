@@ -1,4 +1,4 @@
-import React from "react";
+import React, { lazy, Suspense } from "react";
 import {
   BrowserRouter as Router,
   Routes,
@@ -11,22 +11,25 @@ import { AnimatePresence } from "./components/motion";
 import Navbar from "./components/Navbar";
 import { Loader } from "./components/ui";
 
+// Auth pages load eagerly (first paint); everything else is code-split so the
+// heavy chart/animation code only downloads when that route is visited.
 import Login from "./pages/Login";
 import Register from "./pages/Register";
-import UserDashboard from "./pages/user/UserDashboard";
-import UserTeams from "./pages/user/UserTeams";
-import UserDrivers from "./pages/user/UserDrivers";
-import UserDriverProfile from "./pages/user/UserDriverProfile";
-import UserRaces from "./pages/user/UserRaces";
-import UserStandings from "./pages/user/UserStandings";
-import UserRaceHistory from "./pages/user/UserRaceHistory";
-import UserTeamStaff from "./pages/user/UserTeamStaff";
-import AdminDashboard from "./pages/admin/AdminDashboard";
-import AdminTeams from "./pages/admin/AdminTeams";
-import AdminDrivers from "./pages/admin/AdminDrivers";
-import AdminRaces from "./pages/admin/AdminRaces";
-import AdminStandings from "./pages/admin/AdminStandings";
-import AdminStaff from "./pages/admin/AdminStaff";
+
+const UserDashboard = lazy(() => import("./pages/user/UserDashboard"));
+const UserTeams = lazy(() => import("./pages/user/UserTeams"));
+const UserDrivers = lazy(() => import("./pages/user/UserDrivers"));
+const UserDriverProfile = lazy(() => import("./pages/user/UserDriverProfile"));
+const UserRaces = lazy(() => import("./pages/user/UserRaces"));
+const UserStandings = lazy(() => import("./pages/user/UserStandings"));
+const UserRaceHistory = lazy(() => import("./pages/user/UserRaceHistory"));
+const UserTeamStaff = lazy(() => import("./pages/user/UserTeamStaff"));
+const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard"));
+const AdminTeams = lazy(() => import("./pages/admin/AdminTeams"));
+const AdminDrivers = lazy(() => import("./pages/admin/AdminDrivers"));
+const AdminRaces = lazy(() => import("./pages/admin/AdminRaces"));
+const AdminStandings = lazy(() => import("./pages/admin/AdminStandings"));
+const AdminStaff = lazy(() => import("./pages/admin/AdminStaff"));
 
 const ProtectedRoute = ({ children, adminOnly = false }) => {
   const { user, loading } = useAuth();
@@ -50,31 +53,33 @@ const AppRoutes = () => {
   const location = useLocation();
   return (
     <AnimatePresence mode="wait">
-      <Routes location={location} key={location.pathname}>
-        <Route path="/login" element={<RedirectHome><Login /></RedirectHome>} />
-        <Route path="/register" element={<RedirectHome><Register /></RedirectHome>} />
+      <Suspense fallback={<Loader label="Loading" />}>
+        <Routes location={location} key={location.pathname}>
+          <Route path="/login" element={<RedirectHome><Login /></RedirectHome>} />
+          <Route path="/register" element={<RedirectHome><Register /></RedirectHome>} />
 
-        {/* User */}
-        <Route path="/dashboard" element={protect(<UserDashboard />)} />
-        <Route path="/teams" element={protect(<UserTeams />)} />
-        <Route path="/drivers" element={protect(<UserDrivers />)} />
-        <Route path="/drivers/:id" element={protect(<UserDriverProfile />)} />
-        <Route path="/races" element={protect(<UserRaces />)} />
-        <Route path="/standings" element={protect(<UserStandings />)} />
-        <Route path="/history" element={protect(<UserRaceHistory />)} />
-        <Route path="/team-staff" element={protect(<UserTeamStaff />)} />
+          {/* User */}
+          <Route path="/dashboard" element={protect(<UserDashboard />)} />
+          <Route path="/teams" element={protect(<UserTeams />)} />
+          <Route path="/drivers" element={protect(<UserDrivers />)} />
+          <Route path="/drivers/:id" element={protect(<UserDriverProfile />)} />
+          <Route path="/races" element={protect(<UserRaces />)} />
+          <Route path="/standings" element={protect(<UserStandings />)} />
+          <Route path="/history" element={protect(<UserRaceHistory />)} />
+          <Route path="/team-staff" element={protect(<UserTeamStaff />)} />
 
-        {/* Admin */}
-        <Route path="/admin" element={protect(<AdminDashboard />, true)} />
-        <Route path="/admin/teams" element={protect(<AdminTeams />, true)} />
-        <Route path="/admin/drivers" element={protect(<AdminDrivers />, true)} />
-        <Route path="/admin/races" element={protect(<AdminRaces />, true)} />
-        <Route path="/admin/standings" element={protect(<AdminStandings />, true)} />
-        <Route path="/admin/staff" element={protect(<AdminStaff />, true)} />
+          {/* Admin */}
+          <Route path="/admin" element={protect(<AdminDashboard />, true)} />
+          <Route path="/admin/teams" element={protect(<AdminTeams />, true)} />
+          <Route path="/admin/drivers" element={protect(<AdminDrivers />, true)} />
+          <Route path="/admin/races" element={protect(<AdminRaces />, true)} />
+          <Route path="/admin/standings" element={protect(<AdminStandings />, true)} />
+          <Route path="/admin/staff" element={protect(<AdminStaff />, true)} />
 
-        <Route path="/" element={<Navigate to="/login" replace />} />
-        <Route path="*" element={<Navigate to="/login" replace />} />
-      </Routes>
+          <Route path="/" element={<Navigate to="/login" replace />} />
+          <Route path="*" element={<Navigate to="/login" replace />} />
+        </Routes>
+      </Suspense>
     </AnimatePresence>
   );
 };
