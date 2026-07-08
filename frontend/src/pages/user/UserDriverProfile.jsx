@@ -1,116 +1,119 @@
-import React, { useState, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import React from "react";
+import { useParams, Link } from "react-router-dom";
 import {
+  ResponsiveContainer,
   BarChart,
   Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
   LineChart,
   Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
 } from "recharts";
 import API from "../../api";
+import { useFetch } from "../../hooks/useFetch";
+import { PageTransition, Reveal, AnimatedNumber } from "../../components/motion";
+import { Loader, EmptyState, StatCard, SectionTitle, teamAccent } from "../../components/ui";
+import * as Icons from "../../components/Icons";
 
-const UserDriverProfile = () => {
+const tooltipStyle = {
+  background: "#14141e",
+  border: "1px solid #38384c",
+  borderRadius: 10,
+  color: "#f4f4f8",
+};
+
+export default function UserDriverProfile() {
   const { id } = useParams();
-  const navigate = useNavigate();
-  const [driver, setDriver] = useState(null);
-  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    API.get(`/drivers/${id}`)
-      .then((res) => {
-        setDriver(res.data);
-        setLoading(false);
-      })
-      .catch(() => {
-        setLoading(false);
-        navigate("/drivers");
-      });
-  }, [id, navigate]);
+  const {
+    data: driver,
+    loading,
+    error,
+  } = useFetch(() => API.get(`/drivers/${id}`).then((r) => r.data), [id]);
 
-  if (loading)
+  if (loading) return <Loader label="Loading driver profile…" />;
+
+  if (error || !driver) {
     return (
-      <div className="loading">
-        <div className="spinner"></div>Loading...
-      </div>
+      <PageTransition>
+        <EmptyState
+          icon="🏁"
+          title="Driver not found"
+          message="We couldn't find this driver. They may have left the grid."
+          action={
+            <Link to="/drivers" className="btn">
+              Back to Drivers
+            </Link>
+          }
+        />
+      </PageTransition>
     );
-  if (!driver) return <div className="loading">Driver not found</div>;
+  }
 
-  const historyData = [...(driver.history || [])].sort(
-    (a, b) => a.year - b.year,
-  );
+  const historyData = [...(driver.history || [])].sort((a, b) => a.year - b.year);
+  const teamName = driver.team?.name || driver.team?.fullName;
 
   return (
-    <div className="driver-profile">
-      <button
+    <PageTransition>
+      <Link
+        to="/drivers"
         className="btn btn-secondary btn-sm"
-        onClick={() => navigate("/drivers")}
-        style={{ marginBottom: "20px" }}
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 8,
+          marginBottom: 20,
+        }}
       >
-        ← Back to Drivers
-      </button>
+        <Icons.IconArrowLeft /> Back to Drivers
+      </Link>
 
-      <div className="driver-profile-header">
-        <div
-          className="team-color-bar"
-          style={{
-            background: driver.team?.color || "#666",
-            minHeight: "80px",
-            width: "6px",
-          }}
-        ></div>
+      <Reveal
+        className="driver-profile-header"
+        style={teamAccent(driver.team?.color)}
+      >
         <div className="driver-profile-number">{driver.number}</div>
         <div className="driver-profile-name">
           <h1>
             {driver.firstName} {driver.lastName}
           </h1>
-          <div className="team-name" style={{ color: driver.team?.color }}>
-            {driver.team?.name || driver.team?.fullName}
+          <div className="team-name" style={{ color: "var(--team-accent)" }}>
+            {teamName}
           </div>
           <div
             style={{
               color: "var(--text-muted)",
-              fontSize: "14px",
-              marginTop: "4px",
+              fontSize: 14,
+              marginTop: 4,
             }}
           >
-            {driver.nationality} · Born: {driver.dateOfBirth}
+            {driver.nationality}
+            {driver.dateOfBirth ? ` · Born ${driver.dateOfBirth}` : ""}
           </div>
         </div>
+      </Reveal>
+
+      <div className="stats-grid" style={{ margin: "24px 0" }}>
+        <StatCard
+          label="World Titles"
+          value={driver.worldChampionships}
+          accent="#e10600"
+        />
+        <StatCard label="Race Wins" value={driver.totalRaceWins} accent="#27f4d2" />
+        <StatCard label="Podiums" value={driver.totalPodiums} />
+        <StatCard label="Career Points" value={driver.totalPoints} />
       </div>
 
-      {/* Stats */}
-      <div className="stats-grid">
-        <div className="stat-card">
-          <div className="stat-value">{driver.worldChampionships}</div>
-          <div className="stat-label">World Titles</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-value">{driver.totalRaceWins}</div>
-          <div className="stat-label">Race Wins</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-value">{driver.totalPodiums}</div>
-          <div className="stat-label">Podiums</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-value">{driver.totalPoints}</div>
-          <div className="stat-label">Career Points</div>
-        </div>
-      </div>
-
-      {/* Biography */}
       {driver.biography && (
-        <div className="card" style={{ marginBottom: "24px" }}>
-          <h3 style={{ marginBottom: "12px" }}>Biography</h3>
+        <Reveal className="card" style={{ marginBottom: 24 }}>
+          <SectionTitle>Biography</SectionTitle>
           <p
             style={{
               color: "var(--text-secondary)",
-              lineHeight: "1.8",
-              fontSize: "14px",
+              lineHeight: 1.8,
+              fontSize: 14,
             }}
           >
             {driver.biography}
@@ -118,71 +121,66 @@ const UserDriverProfile = () => {
           {driver.seasonsActive && (
             <p
               style={{
-                marginTop: "10px",
-                fontSize: "13px",
+                marginTop: 10,
+                fontSize: 13,
                 color: "var(--text-muted)",
               }}
             >
               Seasons Active: {driver.seasonsActive}
             </p>
           )}
-        </div>
+        </Reveal>
       )}
 
-      {/* Career History Charts */}
-      {historyData.length > 0 && (
+      {historyData.length > 0 ? (
         <>
-          <div className="chart-container">
-            <div className="chart-title">Points Per Season</div>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={historyData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#2a2a3c" />
-                <XAxis dataKey="year" stroke="#6b6b80" />
-                <YAxis stroke="#6b6b80" />
-                <Tooltip
-                  contentStyle={{
-                    background: "#1e1e2e",
-                    border: "1px solid #2a2a3c",
-                    borderRadius: "8px",
-                    color: "#e8e8ec",
-                  }}
-                />
-                <Bar dataKey="points" fill="#e8002d" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
+          <Reveal className="grid-2" style={{ marginBottom: 24 }}>
+            <div className="chart-container">
+              <h3 className="chart-title">Points Per Season</h3>
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={historyData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#262636" />
+                  <XAxis dataKey="year" stroke="#6b6b82" tick={{ fontSize: 12 }} />
+                  <YAxis stroke="#6b6b82" tick={{ fontSize: 12 }} />
+                  <Tooltip contentStyle={tooltipStyle} cursor={{ fill: "rgba(225,6,0,0.08)" }} />
+                  <Bar
+                    dataKey="points"
+                    fill={driver.team?.color || "#e10600"}
+                    radius={[4, 4, 0, 0]}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
 
-          <div className="chart-container">
-            <div className="chart-title">Championship Position Over Time</div>
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={historyData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#2a2a3c" />
-                <XAxis dataKey="year" stroke="#6b6b80" />
-                <YAxis stroke="#6b6b80" reversed domain={[1, "auto"]} />
-                <Tooltip
-                  contentStyle={{
-                    background: "#1e1e2e",
-                    border: "1px solid #2a2a3c",
-                    borderRadius: "8px",
-                    color: "#e8e8ec",
-                  }}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="position"
-                  stroke="#27f4d2"
-                  strokeWidth={2}
-                  dot={{ fill: "#27f4d2", r: 5 }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
+            <div className="chart-container">
+              <h3 className="chart-title">Championship Position Over Time</h3>
+              <ResponsiveContainer width="100%" height={300}>
+                <LineChart data={historyData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#262636" />
+                  <XAxis dataKey="year" stroke="#6b6b82" tick={{ fontSize: 12 }} />
+                  <YAxis
+                    stroke="#6b6b82"
+                    tick={{ fontSize: 12 }}
+                    reversed
+                    domain={[1, "auto"]}
+                  />
+                  <Tooltip contentStyle={tooltipStyle} />
+                  <Line
+                    type="monotone"
+                    dataKey="position"
+                    stroke="#27f4d2"
+                    strokeWidth={2}
+                    dot={{ fill: "#27f4d2", r: 5 }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </Reveal>
 
-          {/* History Table */}
-          <div className="card history-table">
-            <h3 style={{ marginBottom: "16px" }}>Season-by-Season History</h3>
+          <Reveal className="card">
+            <SectionTitle>Season-by-Season History</SectionTitle>
             <div className="table-container" style={{ border: "none" }}>
-              <table>
+              <table className="table">
                 <thead>
                   <tr>
                     <th>Year</th>
@@ -196,54 +194,43 @@ const UserDriverProfile = () => {
                 <tbody>
                   {[...historyData].reverse().map((h, i) => (
                     <tr key={i}>
-                      <td
-                        style={{
-                          fontWeight: 600,
-                          color: "var(--text-primary)",
-                        }}
-                      >
+                      <td style={{ fontWeight: 600, color: "var(--text-primary)" }}>
                         {h.year}
                       </td>
                       <td>{h.team}</td>
-                      <td
-                        style={{
-                          fontWeight: 700,
-                          color:
-                            h.position === 1
-                              ? "var(--accent-red)"
-                              : h.position <= 3
-                                ? "var(--accent-green)"
-                                : "var(--text-secondary)",
-                        }}
-                      >
-                        P{h.position}
+                      <td>
+                        <span
+                          className={
+                            h.position <= 3 ? `pos-medal pos-${h.position}` : ""
+                          }
+                          style={
+                            h.position > 3
+                              ? { fontWeight: 700, color: "var(--text-secondary)" }
+                              : undefined
+                          }
+                        >
+                          P{h.position}
+                        </span>
                       </td>
                       <td>{h.wins}</td>
                       <td>{h.podiums}</td>
-                      <td style={{ fontWeight: 600 }}>{h.points}</td>
+                      <td className="mono-num" style={{ fontWeight: 600 }}>
+                        {h.points}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-          </div>
+          </Reveal>
         </>
+      ) : (
+        <EmptyState
+          icon="🏎️"
+          title="New to the grid"
+          message="This driver is new to F1 — no season history available yet."
+        />
       )}
-
-      {historyData.length === 0 && (
-        <div
-          className="card"
-          style={{
-            textAlign: "center",
-            padding: "40px",
-            color: "var(--text-muted)",
-          }}
-        >
-          This driver is new to F1 — no season history available yet.
-        </div>
-      )}
-    </div>
+    </PageTransition>
   );
-};
-
-export default UserDriverProfile;
+}

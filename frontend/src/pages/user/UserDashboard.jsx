@@ -1,175 +1,183 @@
-import React, { useState, useEffect } from "react";
+import React from "react";
 import { Link } from "react-router-dom";
 import API from "../../api";
+import { useFetch } from "../../hooks/useFetch";
+import {
+  PageTransition,
+  Reveal,
+  Stagger,
+  StaggerItem,
+  Marquee,
+  AnimatedNumber,
+} from "../../components/motion";
+import { PageHeader, Loader } from "../../components/ui";
+import { RACE_SEASON, STANDINGS_SEASON, CALENDAR_ROUNDS } from "../../config/season";
+import { IconChevronRight } from "../../components/Icons";
 
-const UserDashboard = () => {
-  const [stats, setStats] = useState({ teams: 0, drivers: 0, races: 0 });
-  const [upcomingRaces, setUpcomingRaces] = useState([]);
-  const [topDrivers, setTopDrivers] = useState([]);
-  const [loading, setLoading] = useState(true);
+const fmtDate = (d) =>
+  new Date(d).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [teamsRes, driversRes, racesRes, standingsRes] =
-          await Promise.all([
-            API.get("/teams"),
-            API.get("/drivers"),
-            API.get("/races?season=2026&status=upcoming"),
-            API.get("/standings?season=2024&type=driver"),
-          ]);
-        setStats({
-          teams: teamsRes.data.length,
-          drivers: driversRes.data.length,
-          races: racesRes.data.length,
-        });
-        setUpcomingRaces(racesRes.data.slice(0, 5));
-        setTopDrivers(standingsRes.data.slice(0, 5));
-      } catch (err) {
-        console.error(err);
-      }
-      setLoading(false);
+export default function UserDashboard() {
+  const { data, loading } = useFetch(async () => {
+    const [teams, drivers, races, standings] = await Promise.all([
+      API.get("/teams"),
+      API.get("/drivers"),
+      API.get(`/races?season=${RACE_SEASON}&status=upcoming`),
+      API.get(`/standings?season=${STANDINGS_SEASON}&type=driver`),
+    ]);
+    return {
+      counts: {
+        teams: teams.data.length,
+        drivers: drivers.data.length,
+        races: races.data.length,
+        calendar: CALENDAR_ROUNDS,
+      },
+      upcoming: races.data.slice(0, 5),
+      topDrivers: standings.data.slice(0, 5),
     };
-    fetchData();
   }, []);
 
-  if (loading)
-    return (
-      <div className="loading">
-        <div className="spinner"></div>Loading...
-      </div>
-    );
+  if (loading) return <Loader label="Formation lap" />;
 
-  const formatDate = (d) =>
-    new Date(d).toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    });
+  const { counts, upcoming, topDrivers } = data;
+  const maxPts = topDrivers.length ? topDrivers[0].points : 0;
+
+  const STATS = [
+    { label: "Teams", value: counts.teams, accent: "#e10600" },
+    { label: "Drivers", value: counts.drivers, accent: "#3671c6" },
+    { label: `Races in ${RACE_SEASON}`, value: counts.races, accent: "#27f4d2" },
+    { label: "Grand Prix Calendar", value: counts.calendar, accent: "#ff8000" },
+  ];
 
   return (
-    <div>
-      <div className="page-header">
-        <div>
-          <h1>
-            <span>F1</span> Dashboard
-          </h1>
-          <p className="page-subtitle">2026 Season Overview</p>
-        </div>
+    <PageTransition>
+      <PageHeader
+        eyebrow={`${RACE_SEASON} Season`}
+        accent="F1"
+        title="Dashboard"
+        subtitle="Your paddock overview — the grid, the calendar and the championship fight."
+      />
+
+      <Stagger className="stats-grid">
+        {STATS.map((s) => (
+          <StaggerItem key={s.label} className="stat-card" style={{ "--team-accent": s.accent }}>
+            <div className="stat-value mono-num">
+              <AnimatedNumber value={s.value} />
+            </div>
+            <div className="stat-label">{s.label}</div>
+          </StaggerItem>
+        ))}
+      </Stagger>
+
+      <div style={{ margin: "6px 0 28px" }}>
+        <Marquee
+          items={[
+            `${RACE_SEASON} World Championship`,
+            "23 Circuits",
+            "10 Teams",
+            "20 Drivers",
+            "Lights Out",
+            "Chequered Flag",
+          ]}
+        />
       </div>
 
-      <div className="stats-grid">
-        <div className="stat-card">
-          <div className="stat-value">{stats.teams}</div>
-          <div className="stat-label">Teams</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-value">{stats.drivers}</div>
-          <div className="stat-label">Drivers</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-value">{stats.races}</div>
-          <div className="stat-label">Races in 2026</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-value">24</div>
-          <div className="stat-label">Grand Prix Calendar</div>
-        </div>
-      </div>
-
-      <div
-        style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "24px" }}
-      >
-        {/* Upcoming Races */}
-        <div className="card">
+      <div className="grid-2">
+        <Reveal className="card">
           <div className="card-header">
-            <h3>Upcoming Races</h3>
-            <Link to="/races" className="btn btn-sm btn-secondary">
-              View All
+            <h3 style={{ fontFamily: "var(--font-display)", textTransform: "uppercase" }}>
+              Upcoming Races
+            </h3>
+            <Link to="/races" className="btn btn-sm btn-ghost">
+              View all <IconChevronRight />
             </Link>
           </div>
-          <div className="table-container" style={{ border: "none" }}>
-            <table>
-              <thead>
-                <tr>
-                  <th>Round</th>
-                  <th>Race</th>
-                  <th>Date</th>
-                </tr>
-              </thead>
-              <tbody>
-                {upcomingRaces.map((race) => (
-                  <tr key={race._id}>
-                    <td>
-                      <span
-                        style={{ color: "var(--accent-red)", fontWeight: 700 }}
-                      >
-                        R{race.round}
-                      </span>
-                    </td>
-                    <td
-                      style={{ color: "var(--text-primary)", fontWeight: 500 }}
-                    >
-                      {race.name}
-                    </td>
-                    <td style={{ color: "var(--accent-green)" }}>
-                      {formatDate(race.date)}
-                    </td>
+          {upcoming.length === 0 ? (
+            <p className="text-muted">No upcoming races.</p>
+          ) : (
+            <div className="table-container" style={{ border: "none" }}>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Rd</th>
+                    <th>Grand Prix</th>
+                    <th>Date</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+                </thead>
+                <tbody>
+                  {upcoming.map((race) => (
+                    <tr key={race._id}>
+                      <td>
+                        <span className="race-round">R{race.round}</span>
+                      </td>
+                      <td style={{ color: "var(--text-primary)", fontWeight: 600 }}>
+                        {race.name}
+                      </td>
+                      <td style={{ color: "var(--accent-teal)" }}>
+                        {fmtDate(race.date)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Reveal>
 
-        {/* Top Drivers 2024 */}
-        <div className="card">
+        <Reveal className="card" delay={0.08}>
           <div className="card-header">
-            <h3>2024 Champion Standings</h3>
-            <Link to="/standings" className="btn btn-sm btn-secondary">
-              View All
+            <h3 style={{ fontFamily: "var(--font-display)", textTransform: "uppercase" }}>
+              {STANDINGS_SEASON} Drivers&apos; Title
+            </h3>
+            <Link to="/standings" className="btn btn-sm btn-ghost">
+              View all <IconChevronRight />
             </Link>
           </div>
-          <div className="table-container" style={{ border: "none" }}>
-            <table>
-              <thead>
-                <tr>
-                  <th>Pos</th>
-                  <th>Driver</th>
-                  <th>Team</th>
-                  <th>Points</th>
-                </tr>
-              </thead>
-              <tbody>
-                {topDrivers.map((d) => (
-                  <tr key={d._id}>
-                    <td
-                      style={{
-                        fontWeight: 700,
-                        color:
-                          d.position <= 3
-                            ? "var(--accent-red)"
-                            : "var(--text-secondary)",
-                      }}
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {topDrivers.map((d) => (
+              <div key={d._id}>
+                <div className="flex-between" style={{ marginBottom: 5 }}>
+                  <span style={{ fontWeight: 600, color: "var(--text-primary)" }}>
+                    <span
+                      className={`pos-medal ${d.position <= 3 ? `pos-${d.position}` : ""}`}
+                      style={{ marginRight: 8 }}
                     >
                       P{d.position}
-                    </td>
-                    <td
-                      style={{ color: "var(--text-primary)", fontWeight: 500 }}
-                    >
-                      {d.name}
-                    </td>
-                    <td>{d.team}</td>
-                    <td style={{ fontWeight: 600 }}>{d.points}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                    </span>
+                    {d.name}
+                  </span>
+                  <span style={{ fontWeight: 700 }} className="mono-num">
+                    {d.points} pts
+                  </span>
+                </div>
+                <div
+                  style={{
+                    height: 7,
+                    borderRadius: 4,
+                    background: "var(--bg-primary)",
+                    overflow: "hidden",
+                  }}
+                >
+                  <div
+                    style={{
+                      height: "100%",
+                      width: `${maxPts ? (d.points / maxPts) * 100 : 0}%`,
+                      borderRadius: 4,
+                      background:
+                        d.position <= 3 ? "var(--accent-red)" : "var(--accent-blue)",
+                      transition: "width 0.7s var(--ease-out)",
+                    }}
+                  />
+                </div>
+              </div>
+            ))}
           </div>
-        </div>
+        </Reveal>
       </div>
-    </div>
+    </PageTransition>
   );
-};
-
-export default UserDashboard;
+}

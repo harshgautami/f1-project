@@ -5,17 +5,46 @@ const AuthContext = createContext();
 
 export const useAuth = () => useContext(AuthContext);
 
+const publicUser = (u) => ({
+  id: u._id || u.id,
+  username: u.username,
+  email: u.email,
+  role: u.role,
+});
+
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // On load: optimistically restore the cached user, then validate the token
+  // against the server (/auth/me). A stale/tampered cache or expired token is
+  // rejected (the axios 401 interceptor clears storage), so the UI never trusts
+  // a role the backend wouldn't honour.
   useEffect(() => {
     const token = localStorage.getItem("f1_token");
     const savedUser = localStorage.getItem("f1_user");
-    if (token && savedUser) {
-      setUser(JSON.parse(savedUser));
+    if (!token) {
+      setLoading(false);
+      return;
     }
-    setLoading(false);
+    if (savedUser) {
+      try {
+        setUser(JSON.parse(savedUser));
+      } catch {
+        localStorage.removeItem("f1_user");
+      }
+    }
+    API.get("/auth/me")
+      .then((res) => {
+        const u = publicUser(res.data);
+        setUser(u);
+        localStorage.setItem("f1_user", JSON.stringify(u));
+      })
+      .catch(() => {
+        // 401 → interceptor already cleared storage; drop the user here too.
+        setUser(null);
+      })
+      .finally(() => setLoading(false));
   }, []);
 
   const login = async (email, password) => {

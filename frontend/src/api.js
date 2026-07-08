@@ -24,7 +24,11 @@ API.interceptors.response.use(
     if (error.response && error.response.status === 401) {
       localStorage.removeItem("f1_token");
       localStorage.removeItem("f1_user");
-      window.location.href = "/login";
+      // Respect the Vite base path (e.g. "/repo/" on GitHub Pages).
+      const base = import.meta.env.BASE_URL || "/";
+      if (!window.location.pathname.endsWith("/login")) {
+        window.location.href = `${base}login`.replace(/\/{2,}/g, "/");
+      }
     }
     return Promise.reject(error);
   },

@@ -1,309 +1,380 @@
-import React, { useState, useEffect } from "react";
+import { useState } from "react";
 import {
+  ResponsiveContainer,
   BarChart,
   Bar,
+  Cell,
   XAxis,
   YAxis,
-  CartesianGrid,
   Tooltip,
-  Legend,
-  ResponsiveContainer,
-  LineChart,
-  Line,
+  CartesianGrid,
 } from "recharts";
 import API from "../../api";
+import { useFetch } from "../../hooks/useFetch";
+import {
+  PageTransition,
+  Reveal,
+  Stagger,
+  StaggerItem,
+  AnimatedNumber,
+} from "../../components/motion";
+import {
+  PageHeader,
+  Loader,
+  EmptyState,
+  StatCard,
+  Tabs,
+  SectionTitle,
+  teamAccent,
+} from "../../components/ui";
+import * as Icons from "../../components/Icons";
 
-const UserRaceHistory = () => {
-  const [history, setHistory] = useState([]);
-  const [selectedYear, setSelectedYear] = useState(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    API.get("/race-history")
-      .then((res) => {
-        setHistory(res.data);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
-  }, []);
-
-  if (loading)
-    return (
-      <div className="loading">
-        <div className="spinner"></div>Loading...
-      </div>
-    );
-
-  // Data for total races per year chart
-  const racesPerYear = history.map((h) => ({
-    year: h.year,
-    totalRaces: h.totalRaces,
-  }));
-
-  // Champions over years data
-  const championsData = history.map((h) => ({
-    year: h.year,
-    champion: h.champion,
-    team: h.championTeam,
-    constructorChampion: h.constructorChampion,
-  }));
-
-  // Team wins data for stacked bar chart
-  const allTeams = new Set();
-  history.forEach((h) => h.teamWins.forEach((tw) => allTeams.add(tw.team)));
-  const teamColors = {};
-  history.forEach((h) =>
-    h.teamWins.forEach((tw) => {
-      teamColors[tw.team] = tw.color;
-    }),
-  );
-
-  const teamWinsData = history.map((h) => {
-    const obj = { year: h.year };
-    h.teamWins.forEach((tw) => {
-      obj[tw.team] = tw.wins;
-    });
-    return obj;
-  });
-
-  const selectedYearData = selectedYear
-    ? history.find((h) => h.year === selectedYear)
-    : null;
-
-  return (
-    <div>
-      <div className="page-header">
-        <div>
-          <h1>
-            <span>Race</span> History 2016-2024
-          </h1>
-          <p className="page-subtitle">
-            Team performance and championship data across seasons
-          </p>
-        </div>
-      </div>
-
-      {/* Champions Table */}
-      <div className="card" style={{ marginBottom: "24px" }}>
-        <h3 style={{ marginBottom: "16px" }}>World Champions (2016-2024)</h3>
-        <div className="table-container" style={{ border: "none" }}>
-          <table>
-            <thead>
-              <tr>
-                <th>Year</th>
-                <th>Driver Champion</th>
-                <th>Team</th>
-                <th>Constructor Champion</th>
-                <th>Races</th>
-              </tr>
-            </thead>
-            <tbody>
-              {[...history].reverse().map((h) => (
-                <tr
-                  key={h.year}
-                  onClick={() => setSelectedYear(h.year)}
-                  style={{ cursor: "pointer" }}
-                >
-                  <td style={{ fontWeight: 700, color: "var(--accent-red)" }}>
-                    {h.year}
-                  </td>
-                  <td style={{ fontWeight: 600, color: "var(--text-primary)" }}>
-                    {h.champion}
-                  </td>
-                  <td>{h.championTeam}</td>
-                  <td style={{ fontWeight: 500 }}>{h.constructorChampion}</td>
-                  <td>{h.totalRaces}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Races Per Year Chart */}
-      <div className="chart-container">
-        <div className="chart-title">Total Races Per Season</div>
-        <ResponsiveContainer width="100%" height={300}>
-          <BarChart data={racesPerYear}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#2a2a3c" />
-            <XAxis dataKey="year" stroke="#6b6b80" />
-            <YAxis stroke="#6b6b80" />
-            <Tooltip
-              contentStyle={{
-                background: "#1e1e2e",
-                border: "1px solid #2a2a3c",
-                borderRadius: "8px",
-                color: "#e8e8ec",
-              }}
-            />
-            <Bar
-              dataKey="totalRaces"
-              fill="#e8002d"
-              radius={[4, 4, 0, 0]}
-              name="Total Races"
-            />
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
-
-      {/* Team Wins Stacked Bar Chart */}
-      <div className="chart-container">
-        <div className="chart-title">Team Race Wins by Season</div>
-        <ResponsiveContainer width="100%" height={400}>
-          <BarChart data={teamWinsData}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#2a2a3c" />
-            <XAxis dataKey="year" stroke="#6b6b80" />
-            <YAxis stroke="#6b6b80" />
-            <Tooltip
-              contentStyle={{
-                background: "#1e1e2e",
-                border: "1px solid #2a2a3c",
-                borderRadius: "8px",
-                color: "#e8e8ec",
-              }}
-            />
-            <Legend />
-            {[...allTeams].map((team) => (
-              <Bar
-                key={team}
-                dataKey={team}
-                stackId="a"
-                fill={teamColors[team] || "#666"}
-                name={team}
-              />
-            ))}
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
-
-      {/* Dominance Line Chart */}
-      <div className="chart-container">
-        <div className="chart-title">Top Team Wins Trend Over Years</div>
-        <ResponsiveContainer width="100%" height={350}>
-          <LineChart data={teamWinsData}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#2a2a3c" />
-            <XAxis dataKey="year" stroke="#6b6b80" />
-            <YAxis stroke="#6b6b80" />
-            <Tooltip
-              contentStyle={{
-                background: "#1e1e2e",
-                border: "1px solid #2a2a3c",
-                borderRadius: "8px",
-                color: "#e8e8ec",
-              }}
-            />
-            <Legend />
-            <Line
-              type="monotone"
-              dataKey="Mercedes"
-              stroke="#00D2BE"
-              strokeWidth={2}
-              dot={{ r: 4 }}
-            />
-            <Line
-              type="monotone"
-              dataKey="Red Bull Racing"
-              stroke="#3671C6"
-              strokeWidth={2}
-              dot={{ r: 4 }}
-            />
-            <Line
-              type="monotone"
-              dataKey="Ferrari"
-              stroke="#E8002D"
-              strokeWidth={2}
-              dot={{ r: 4 }}
-            />
-            <Line
-              type="monotone"
-              dataKey="McLaren"
-              stroke="#FF8000"
-              strokeWidth={2}
-              dot={{ r: 4 }}
-            />
-          </LineChart>
-        </ResponsiveContainer>
-      </div>
-
-      {/* Selected Year Details */}
-      {selectedYearData && (
-        <div className="card" style={{ marginTop: "24px" }}>
-          <h3 style={{ marginBottom: "16px" }}>
-            {selectedYearData.year} Season Breakdown
-          </h3>
-          <div className="stats-grid">
-            <div className="stat-card">
-              <div className="stat-value">{selectedYearData.totalRaces}</div>
-              <div className="stat-label">Total Races</div>
-            </div>
-            <div className="stat-card">
-              <div className="stat-value" style={{ fontSize: "20px" }}>
-                {selectedYearData.champion}
-              </div>
-              <div className="stat-label">Driver Champion</div>
-            </div>
-            <div className="stat-card">
-              <div className="stat-value" style={{ fontSize: "20px" }}>
-                {selectedYearData.constructorChampion}
-              </div>
-              <div className="stat-label">Constructor Champion</div>
-            </div>
-          </div>
-          <h4 style={{ marginTop: "16px", marginBottom: "12px" }}>Team Wins</h4>
-          {selectedYearData.teamWins.map((tw) => (
-            <div
-              key={tw.team}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "12px",
-                marginBottom: "8px",
-              }}
-            >
-              <div
-                style={{ width: "140px", fontWeight: 500, fontSize: "14px" }}
-              >
-                {tw.team}
-              </div>
-              <div
-                style={{
-                  flex: 1,
-                  background: "var(--bg-primary)",
-                  borderRadius: "4px",
-                  height: "24px",
-                }}
-              >
-                <div
-                  style={{
-                    background: tw.color,
-                    height: "100%",
-                    borderRadius: "4px",
-                    width: `${selectedYearData.totalRaces > 0 ? (tw.wins / selectedYearData.totalRaces) * 100 : 0}%`,
-                    display: "flex",
-                    alignItems: "center",
-                    paddingLeft: "8px",
-                    fontSize: "12px",
-                    fontWeight: 700,
-                    color: "#000",
-                    minWidth: tw.wins > 0 ? "30px" : "0",
-                  }}
-                >
-                  {tw.wins > 0 ? tw.wins : ""}
-                </div>
-              </div>
-            </div>
-          ))}
-          <button
-            className="btn btn-sm btn-secondary"
-            onClick={() => setSelectedYear(null)}
-            style={{ marginTop: "16px" }}
-          >
-            Close
-          </button>
-        </div>
-      )}
-    </div>
-  );
+const CHART_TOOLTIP = {
+  background: "#14141e",
+  border: "1px solid #38384c",
+  borderRadius: 10,
+  color: "#f4f4f8",
 };
 
-export default UserRaceHistory;
+export default function UserRaceHistory() {
+  const { data, loading, error } = useFetch(() => API.get("/race-history"), []);
+
+  const seasons = [...(data || [])].sort((a, b) => b.year - a.year);
+  const [view, setView] = useState("cards");
+
+  if (loading) return <Loader label="Loading the archives…" />;
+
+  if (error)
+    return (
+      <PageTransition>
+        <PageHeader eyebrow="Hall of Fame" accent="RACE" title="History" />
+        <EmptyState
+          icon="⚠️"
+          title="Could not load history"
+          message="The championship archive is unavailable right now. Please try again."
+        />
+      </PageTransition>
+    );
+
+  if (!seasons.length)
+    return (
+      <PageTransition>
+        <PageHeader eyebrow="Hall of Fame" accent="RACE" title="History" />
+        <EmptyState
+          icon="🏁"
+          title="No seasons on record"
+          message="Historical championship data has not been added yet."
+        />
+      </PageTransition>
+    );
+
+  // Most recent season — team wins colored per bar with <Cell>
+  const latest = seasons[0];
+  const latestTeamWins = [...(latest.teamWins || [])].sort(
+    (a, b) => b.wins - a.wins,
+  );
+
+  // Aggregate: championship titles by driver across every season
+  const titlesByDriver = {};
+  seasons.forEach((s) => {
+    if (!s.champion) return;
+    if (!titlesByDriver[s.champion]) {
+      titlesByDriver[s.champion] = { name: s.champion, titles: 0, color: null };
+    }
+    titlesByDriver[s.champion].titles += 1;
+    const tw = (s.teamWins || []).find((t) => t.team === s.championTeam);
+    if (tw?.color) titlesByDriver[s.champion].color = tw.color;
+  });
+  const driverTitles = Object.values(titlesByDriver)
+    .sort((a, b) => b.titles - a.titles)
+    .slice(0, 8);
+
+  const totalTitles = driverTitles.reduce((a, d) => a + d.titles, 0);
+
+  return (
+    <PageTransition>
+      <PageHeader
+        eyebrow="Hall of Fame"
+        accent="RACE"
+        title="History"
+        subtitle="Champions, constructors and race wins across the seasons."
+        actions={
+          <Tabs
+            tabs={[
+              { value: "cards", label: "Seasons" },
+              { value: "charts", label: "Insights" },
+            ]}
+            active={view}
+            onChange={setView}
+          />
+        }
+      />
+
+      <Reveal className="stats-grid" delay={0.05}>
+        <StatCard
+          label="Seasons Archived"
+          value={seasons.length}
+          accent="#e10600"
+        />
+        <StatCard
+          label="Champions Crowned"
+          value={totalTitles}
+          accent="#27f4d2"
+        />
+        <StatCard
+          label="Latest Season"
+          value={latest.year}
+          accent="#e10600"
+          decimals={0}
+        />
+      </Reveal>
+
+      {view === "charts" && (
+        <>
+          <Reveal className="chart-container" delay={0.05}>
+            <h3 className="chart-title">
+              World Titles by Driver — All Seasons
+            </h3>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart
+                data={driverTitles}
+                margin={{ top: 10, right: 12, left: -8, bottom: 4 }}
+              >
+                <CartesianGrid stroke="#262636" vertical={false} />
+                <XAxis
+                  dataKey="name"
+                  stroke="#6b6b82"
+                  tick={{ fontSize: 12 }}
+                  interval={0}
+                  angle={-18}
+                  textAnchor="end"
+                  height={64}
+                />
+                <YAxis
+                  stroke="#6b6b82"
+                  tick={{ fontSize: 12 }}
+                  allowDecimals={false}
+                />
+                <Tooltip
+                  cursor={{ fill: "rgba(225,6,0,0.08)" }}
+                  contentStyle={CHART_TOOLTIP}
+                />
+                <Bar dataKey="titles" name="Titles" radius={[6, 6, 0, 0]}>
+                  {driverTitles.map((d) => (
+                    <Cell key={d.name} fill={d.color || "#e10600"} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </Reveal>
+
+          <Reveal className="chart-container" delay={0.1}>
+            <h3 className="chart-title">
+              Race Wins by Team — {latest.year} Season
+            </h3>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart
+                data={latestTeamWins}
+                margin={{ top: 10, right: 12, left: -8, bottom: 4 }}
+              >
+                <CartesianGrid stroke="#262636" vertical={false} />
+                <XAxis
+                  dataKey="team"
+                  stroke="#6b6b82"
+                  tick={{ fontSize: 12 }}
+                  interval={0}
+                  angle={-18}
+                  textAnchor="end"
+                  height={64}
+                />
+                <YAxis
+                  stroke="#6b6b82"
+                  tick={{ fontSize: 12 }}
+                  allowDecimals={false}
+                />
+                <Tooltip
+                  cursor={{ fill: "rgba(39,244,210,0.08)" }}
+                  contentStyle={CHART_TOOLTIP}
+                />
+                <Bar dataKey="wins" name="Wins" radius={[6, 6, 0, 0]}>
+                  {latestTeamWins.map((tw) => (
+                    <Cell key={tw.team} fill={tw.color || "#27f4d2"} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </Reveal>
+        </>
+      )}
+
+      {view === "cards" && (
+        <>
+          <SectionTitle>Season Archive</SectionTitle>
+          <Stagger className="card-grid">
+            {seasons.map((s) => {
+              const championColor = (s.teamWins || []).find(
+                (t) => t.team === s.championTeam,
+              )?.color;
+              const topWins = [...(s.teamWins || [])].sort(
+                (a, b) => b.wins - a.wins,
+              );
+              return (
+                <StaggerItem key={s.year}>
+                  <div
+                    className="card"
+                    style={teamAccent(championColor || "#e10600")}
+                  >
+                    <div className="flex-between">
+                      <div
+                        style={{
+                          fontStyle: "italic",
+                          fontWeight: 800,
+                          fontSize: "2.6rem",
+                          lineHeight: 1,
+                          color: "var(--team-accent)",
+                        }}
+                      >
+                        {s.year}
+                      </div>
+                      <div
+                        className="text-muted"
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 6,
+                          fontSize: 13,
+                        }}
+                      >
+                        <Icons.IconCalendar />
+                        <AnimatedNumber value={s.totalRaces} /> races
+                      </div>
+                    </div>
+
+                    <div
+                      className="section"
+                      style={{ display: "grid", gap: 12 }}
+                    >
+                      <div className="team-detail-row">
+                        <span
+                          className="label"
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 6,
+                          }}
+                        >
+                          <Icons.IconTrophy /> World Champion
+                        </span>
+                        <span
+                          style={{
+                            fontWeight: 700,
+                            color: "var(--text-primary)",
+                          }}
+                        >
+                          {s.champion}
+                          {s.championTeam ? (
+                            <span
+                              className="text-muted"
+                              style={{ fontWeight: 500 }}
+                            >
+                              {" "}
+                              · {s.championTeam}
+                            </span>
+                          ) : null}
+                        </span>
+                      </div>
+
+                      <div className="team-detail-row">
+                        <span
+                          className="label"
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 6,
+                          }}
+                        >
+                          <Icons.IconFlag /> Constructors' Champion
+                        </span>
+                        <span
+                          style={{
+                            fontWeight: 700,
+                            color: "var(--text-primary)",
+                          }}
+                        >
+                          {s.constructorChampion}
+                        </span>
+                      </div>
+                    </div>
+
+                    {topWins.length > 0 && (
+                      <div className="section" style={{ display: "grid", gap: 8 }}>
+                        {topWins.map((tw) => {
+                          const pct =
+                            s.totalRaces > 0
+                              ? (tw.wins / s.totalRaces) * 100
+                              : 0;
+                          return (
+                            <div
+                              key={tw.team}
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 12,
+                              }}
+                            >
+                              <div
+                                style={{
+                                  width: 120,
+                                  fontSize: 13,
+                                  fontWeight: 600,
+                                  color: "var(--text-secondary)",
+                                  whiteSpace: "nowrap",
+                                  overflow: "hidden",
+                                  textOverflow: "ellipsis",
+                                }}
+                              >
+                                {tw.team}
+                              </div>
+                              <div
+                                style={{
+                                  flex: 1,
+                                  background: "var(--bg-primary)",
+                                  borderRadius: 6,
+                                  height: 20,
+                                  overflow: "hidden",
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    width: `${pct}%`,
+                                    minWidth: tw.wins > 0 ? 26 : 0,
+                                    height: "100%",
+                                    background: tw.color || "#e10600",
+                                    borderRadius: 6,
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "flex-end",
+                                    paddingRight: 6,
+                                    fontSize: 11,
+                                    fontWeight: 800,
+                                    color: "#0b0b12",
+                                  }}
+                                >
+                                  {tw.wins > 0 ? tw.wins : ""}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </StaggerItem>
+              );
+            })}
+          </Stagger>
+        </>
+      )}
+    </PageTransition>
+  );
+}

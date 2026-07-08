@@ -1,182 +1,124 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import API from "../../api";
+import { useFetch } from "../../hooks/useFetch";
+import { PageTransition, Stagger, StaggerItem } from "../../components/motion";
+import { PageHeader, Loader, EmptyState, Badge } from "../../components/ui";
+import { RACE_SEASON } from "../../config/season";
+import * as Icons from "../../components/Icons";
 
-const UserRaces = () => {
-  const [races, setRaces] = useState([]);
-  const [loading, setLoading] = useState(true);
+const STATUS_FILTERS = [
+  { value: "all", label: "All Rounds" },
+  { value: "upcoming", label: "Upcoming" },
+  { value: "completed", label: "Completed" },
+  { value: "cancelled", label: "Cancelled" },
+];
 
-  useEffect(() => {
-    API.get("/races?season=2026")
-      .then((res) => {
-        setRaces(res.data);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
-  }, []);
+const formatDate = (d) =>
+  new Date(d).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
 
-  if (loading)
-    return (
-      <div className="loading">
-        <div className="spinner"></div>Loading...
-      </div>
-    );
+function UserRaces() {
+  const [status, setStatus] = useState("all");
+  const { data, loading, error } = useFetch(
+    () => API.get(`/races?season=${RACE_SEASON}`).then((res) => res.data),
+    []
+  );
 
-  const formatDate = (d) =>
-    new Date(d).toLocaleDateString("en-US", {
-      weekday: "short",
-      month: "long",
-      day: "numeric",
-      year: "numeric",
-    });
+  if (loading) return <Loader label="Loading race calendar…" />;
 
+  const races = [...(data || [])].sort((a, b) => a.round - b.round);
   const now = new Date();
   const nextRace = races.find((r) => new Date(r.date) >= now);
 
-  return (
-    <div>
-      <div className="page-header">
-        <div>
-          <h1>
-            <span>2026</span> Race Calendar
-          </h1>
-          <p className="page-subtitle">{races.length} Grands Prix scheduled</p>
-        </div>
-      </div>
+  const filtered =
+    status === "all" ? races : races.filter((r) => r.status === status);
 
-      {/* Next Race Highlight */}
-      {nextRace && (
-        <div
-          className="card"
-          style={{
-            marginBottom: "24px",
-            borderLeft: "4px solid var(--accent-red)",
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              flexWrap: "wrap",
-              gap: "16px",
-            }}
-          >
-            <div>
-              <div
-                style={{
-                  fontSize: "11px",
-                  fontWeight: 700,
-                  color: "var(--accent-red)",
-                  textTransform: "uppercase",
-                  letterSpacing: "1px",
-                  marginBottom: "4px",
-                }}
-              >
-                Next Race
-              </div>
-              <h2 style={{ fontSize: "22px", fontWeight: 800 }}>
-                {nextRace.name}
-              </h2>
-              <div
-                style={{
-                  color: "var(--text-muted)",
-                  fontSize: "14px",
-                  marginTop: "4px",
-                }}
-              >
-                {nextRace.circuit} · {nextRace.city}, {nextRace.country}
-              </div>
-            </div>
-            <div style={{ textAlign: "right" }}>
-              <div
-                style={{
-                  fontSize: "20px",
-                  fontWeight: 700,
-                  color: "var(--accent-green)",
-                }}
-              >
-                {formatDate(nextRace.date)}
-              </div>
-              <div style={{ fontSize: "13px", color: "var(--text-muted)" }}>
-                Round {nextRace.round} · {nextRace.laps} Laps ·{" "}
-                {nextRace.circuitLength}
-              </div>
-            </div>
+  return (
+    <PageTransition>
+      <PageHeader
+        eyebrow={`${RACE_SEASON} Calendar`}
+        accent="RACE"
+        title="Calendar"
+        subtitle={`${races.length} Grands Prix scheduled for the ${RACE_SEASON} season`}
+        actions={
+          <div className="filter-bar">
+            <select
+              value={status}
+              onChange={(e) => setStatus(e.target.value)}
+            >
+              {STATUS_FILTERS.map((f) => (
+                <option key={f.value} value={f.value}>
+                  {f.label}
+                </option>
+              ))}
+            </select>
           </div>
-        </div>
+        }
+      />
+
+      {error && (
+        <EmptyState
+          icon="⚠️"
+          title="Couldn't load the calendar"
+          message="There was a problem fetching the race schedule. Please try again."
+        />
       )}
 
-      {/* All Races */}
-      <div className="table-container">
-        <table>
-          <thead>
-            <tr>
-              <th>Round</th>
-              <th>Grand Prix</th>
-              <th>Circuit</th>
-              <th>Location</th>
-              <th>Date</th>
-              <th>Laps</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {races.map((race) => {
-              const isPast = new Date(race.date) < now;
-              const isNext = nextRace && race._id === nextRace._id;
-              return (
-                <tr
-                  key={race._id}
-                  style={isNext ? { background: "rgba(232, 0, 45, 0.05)" } : {}}
-                >
-                  <td style={{ fontWeight: 700, color: "var(--accent-red)" }}>
-                    R{race.round}
-                  </td>
-                  <td style={{ fontWeight: 600, color: "var(--text-primary)" }}>
-                    {race.name}
-                    {isNext && (
-                      <span
-                        style={{
-                          marginLeft: "8px",
-                          fontSize: "10px",
-                          background: "var(--accent-red)",
-                          color: "#fff",
-                          padding: "1px 6px",
-                          borderRadius: "3px",
-                        }}
-                      >
-                        NEXT
-                      </span>
-                    )}
-                  </td>
-                  <td>{race.circuit}</td>
-                  <td>
-                    {race.city}, {race.country}
-                  </td>
-                  <td
-                    style={{
-                      color: isPast
-                        ? "var(--text-muted)"
-                        : "var(--accent-green)",
-                      fontWeight: 500,
-                    }}
-                  >
-                    {formatDate(race.date)}
-                  </td>
-                  <td>{race.laps}</td>
-                  <td>
-                    <span className={`race-status ${race.status}`}>
-                      {race.status}
+      {!error && filtered.length === 0 && (
+        <EmptyState
+          icon="🏁"
+          title="No races found"
+          message="No Grands Prix match this filter for the current season."
+        />
+      )}
+
+      {!error && filtered.length > 0 && (
+        <Stagger className="card-grid">
+          {filtered.map((race) => {
+            const isNext = nextRace && race._id === nextRace._id;
+            return (
+              <StaggerItem
+                key={race._id}
+                className="race-card"
+                style={
+                  isNext ? { borderColor: "var(--accent-red)" } : undefined
+                }
+              >
+                <div className="flex-between">
+                  <span className="race-round">R{race.round}</span>
+                  <span className={`race-status ${race.status}`}>
+                    {race.status}
+                  </span>
+                </div>
+
+                <h3 className="race-name">
+                  {race.name}
+                  {isNext && (
+                    <span style={{ marginLeft: 8 }}>
+                      <Badge>Next</Badge>
                     </span>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-    </div>
+                  )}
+                </h3>
+
+                <div className="race-circuit">
+                  <Icons.IconPin />
+                  {race.circuit} · {race.country}
+                </div>
+
+                <div className="race-date">
+                  <Icons.IconCalendar />
+                  {formatDate(race.date)}
+                </div>
+              </StaggerItem>
+            );
+          })}
+        </Stagger>
+      )}
+    </PageTransition>
   );
-};
+}
 
 export default UserRaces;

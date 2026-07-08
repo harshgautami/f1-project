@@ -1,129 +1,131 @@
-import React, { useState, useEffect } from "react";
+import React from "react";
 import { Link } from "react-router-dom";
 import API from "../../api";
+import { useFetch } from "../../hooks/useFetch";
+import {
+  PageTransition,
+  Reveal,
+  Stagger,
+  StaggerItem,
+  Marquee,
+  AnimatedNumber,
+} from "../../components/motion";
+import { PageHeader, Loader } from "../../components/ui";
+import { RACE_SEASON } from "../../config/season";
+import {
+  IconGrid,
+  IconHelmet,
+  IconCalendar,
+  IconUsers,
+  IconChevronRight,
+} from "../../components/Icons";
 
-const AdminDashboard = () => {
-  const [stats, setStats] = useState({
-    teams: 0,
-    drivers: 0,
-    races: 0,
-    staff: 0,
-  });
-  const [loading, setLoading] = useState(true);
+const CARDS = [
+  { label: "Teams", key: "teams", link: "/admin/teams", accent: "#e10600", icon: <IconGrid /> },
+  { label: "Drivers", key: "drivers", link: "/admin/drivers", accent: "#3671c6", icon: <IconHelmet /> },
+  { label: "Races", key: "races", link: "/admin/races", accent: "#27f4d2", icon: <IconCalendar /> },
+  { label: "Staff", key: "staff", link: "/admin/staff", accent: "#ff8000", icon: <IconUsers /> },
+];
 
-  useEffect(() => {
-    Promise.all([
+const QUICK = [
+  ["/admin/teams", "Manage Teams", "btn-primary"],
+  ["/admin/drivers", "Manage Drivers", "btn-primary"],
+  ["/admin/races", "Manage Races", "btn-primary"],
+  ["/admin/standings", "Manage Standings", "btn-secondary"],
+  ["/admin/staff", "Manage Staff", "btn-secondary"],
+];
+
+export default function AdminDashboard() {
+  const { data, loading } = useFetch(async () => {
+    const [t, d, r, s] = await Promise.all([
       API.get("/teams"),
       API.get("/drivers"),
-      API.get("/races?season=2026"),
+      API.get(`/races?season=${RACE_SEASON}`),
       API.get("/team-staff"),
-    ])
-      .then(([t, d, r, s]) => {
-        setStats({
-          teams: t.data.length,
-          drivers: d.data.length,
-          races: r.data.length,
-          staff: s.data.length,
-        });
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
+    ]);
+    return {
+      teams: t.data.length,
+      drivers: d.data.length,
+      races: r.data.length,
+      staff: s.data.length,
+    };
   }, []);
 
-  if (loading)
-    return (
-      <div className="loading">
-        <div className="spinner"></div>Loading...
-      </div>
-    );
-
-  const cards = [
-    {
-      label: "Teams",
-      count: stats.teams,
-      link: "/admin/teams",
-      color: "#e8002d",
-    },
-    {
-      label: "Drivers",
-      count: stats.drivers,
-      link: "/admin/drivers",
-      color: "#3671c6",
-    },
-    {
-      label: "Races",
-      count: stats.races,
-      link: "/admin/races",
-      color: "#27f4d2",
-    },
-    {
-      label: "Staff",
-      count: stats.staff,
-      link: "/admin/staff",
-      color: "#ff8000",
-    },
-  ];
+  if (loading) return <Loader label="Loading control room" />;
+  const stats = data || { teams: 0, drivers: 0, races: 0, staff: 0 };
 
   return (
-    <div>
-      <div className="page-header">
-        <div>
-          <h1>
-            <span>Admin</span> Dashboard
-          </h1>
-          <p className="page-subtitle">
-            Manage all F1 data — teams, drivers, races, standings & staff
-          </p>
-        </div>
-      </div>
+    <PageTransition>
+      <PageHeader
+        eyebrow="Control Room"
+        accent="Admin"
+        title="Dashboard"
+        subtitle="Manage every corner of your F1 world — teams, drivers, races, standings & staff."
+      />
 
-      <div className="stats-grid">
-        {cards.map((c) => (
-          <Link to={c.link} key={c.label} style={{ textDecoration: "none" }}>
-            <div
+      <Stagger className="stats-grid">
+        {CARDS.map((c) => (
+          <StaggerItem key={c.key}>
+            <Link
+              to={c.link}
               className="stat-card"
-              style={{ cursor: "pointer", borderTop: `3px solid ${c.color}` }}
+              style={{ display: "block", textDecoration: "none", "--team-accent": c.accent }}
             >
-              <div className="stat-value" style={{ color: c.color }}>
-                {c.count}
+              <div className="flex-between">
+                <span className="stat-value mono-num" style={{ color: c.accent }}>
+                  <AnimatedNumber value={stats[c.key]} />
+                </span>
+                <span style={{ color: c.accent, fontSize: 22, opacity: 0.9 }}>
+                  {c.icon}
+                </span>
               </div>
               <div className="stat-label">{c.label}</div>
               <div
                 style={{
-                  marginTop: "8px",
-                  fontSize: "12px",
+                  marginTop: 12,
+                  fontSize: 12,
+                  fontWeight: 600,
                   color: "var(--accent-red)",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 4,
                 }}
               >
-                Manage →
+                Manage <IconChevronRight />
               </div>
-            </div>
-          </Link>
+            </Link>
+          </StaggerItem>
         ))}
+      </Stagger>
+
+      <div style={{ margin: "8px 0 28px" }}>
+        <Marquee
+          items={[
+            "Box, box",
+            "Lights out",
+            "Purple sector",
+            "DRS enabled",
+            "Fastest lap",
+            "Hammer time",
+            "Full send",
+          ]}
+        />
       </div>
 
-      <div className="card" style={{ marginTop: "24px" }}>
-        <h3 style={{ marginBottom: "16px" }}>Quick Actions</h3>
-        <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
-          <Link to="/admin/teams" className="btn btn-primary">
-            Manage Teams
-          </Link>
-          <Link to="/admin/drivers" className="btn btn-primary">
-            Manage Drivers
-          </Link>
-          <Link to="/admin/races" className="btn btn-primary">
-            Manage Races
-          </Link>
-          <Link to="/admin/standings" className="btn btn-secondary">
-            Manage Standings
-          </Link>
-          <Link to="/admin/staff" className="btn btn-secondary">
-            Manage Staff
-          </Link>
+      <Reveal className="card">
+        <div className="card-header">
+          <h3 style={{ fontFamily: "var(--font-display)", textTransform: "uppercase" }}>
+            Quick Actions
+          </h3>
         </div>
-      </div>
-    </div>
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+          {QUICK.map(([to, label, variant]) => (
+            <Link key={to} to={to} className={`btn ${variant}`}>
+              {label}
+            </Link>
+          ))}
+        </div>
+      </Reveal>
+    </PageTransition>
   );
-};
-
-export default AdminDashboard;
+}

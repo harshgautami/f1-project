@@ -1,89 +1,101 @@
-import React, { useState, useEffect } from "react";
+import React from "react";
 import API from "../../api";
+import { useFetch } from "../../hooks/useFetch";
+import { PageTransition, Stagger, StaggerItem } from "../../components/motion";
+import { PageHeader, Loader, EmptyState, teamAccent } from "../../components/ui";
 
-const UserTeams = () => {
-  const [teams, setTeams] = useState([]);
-  const [loading, setLoading] = useState(true);
+export default function UserTeams() {
+  const { data, loading, error } = useFetch(() => API.get("/teams"), []);
 
-  useEffect(() => {
-    API.get("/teams")
-      .then((res) => {
-        setTeams(res.data);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
-  }, []);
-
-  if (loading)
-    return (
-      <div className="loading">
-        <div className="spinner"></div>Loading...
-      </div>
+  const teams = React.useMemo(() => {
+    const list = data?.data ?? [];
+    return [...list].sort(
+      (a, b) =>
+        (b.worldChampionships || 0) - (a.worldChampionships || 0) ||
+        (a.name || "").localeCompare(b.name || "")
     );
+  }, [data]);
 
   return (
-    <div>
-      <div className="page-header">
-        <div>
-          <h1>
-            <span>F1</span> Teams 2026
-          </h1>
-          <p className="page-subtitle">
-            All {teams.length} teams competing in the 2026 season
-          </p>
-        </div>
-      </div>
+    <PageTransition>
+      <PageHeader
+        eyebrow="Constructors"
+        accent="F1"
+        title="Constructors"
+        subtitle={
+          teams.length
+            ? `All ${teams.length} teams competing this season`
+            : "Every constructor on the grid"
+        }
+      />
 
-      <div className="card-grid">
-        {teams.map((team) => (
-          <div className="team-card" key={team._id}>
-            <div
-              className="team-card-top"
-              style={{ background: team.color }}
-            ></div>
-            <div className="team-card-body">
-              <h3>{team.name}</h3>
-              <div className="team-full-name">{team.fullName}</div>
-              <div className="team-detail-row">
-                <span className="label">Base</span>
-                <span>{team.base}</span>
+      {loading ? (
+        <Loader label="Loading constructors…" />
+      ) : error ? (
+        <EmptyState
+          icon="⚠️"
+          title="Couldn't load teams"
+          message="There was a problem fetching the constructors. Please try again."
+        />
+      ) : teams.length === 0 ? (
+        <EmptyState
+          icon="🏁"
+          title="No constructors yet"
+          message="Team data will appear here once it's available."
+        />
+      ) : (
+        <Stagger className="card-grid">
+          {teams.map((t) => (
+            <StaggerItem key={t._id}>
+              <div className="team-card" style={teamAccent(t.color)}>
+                <div
+                  className="team-card-top"
+                  style={{ background: t.color || "var(--team-accent)" }}
+                />
+                <div className="team-card-body">
+                  <h3>{t.name}</h3>
+                  <div className="team-full-name">{t.fullName}</div>
+
+                  <div className="team-detail-row">
+                    <span className="label">Base</span>
+                    <span>{t.base || "—"}</span>
+                  </div>
+                  <div className="team-detail-row">
+                    <span className="label">Principal</span>
+                    <span>{t.teamPrincipal || "—"}</span>
+                  </div>
+                  <div className="team-detail-row">
+                    <span className="label">Power Unit</span>
+                    <span>{t.powerUnit || "—"}</span>
+                  </div>
+                  <div className="team-detail-row">
+                    <span className="label">Chassis</span>
+                    <span>{t.chassis || "—"}</span>
+                  </div>
+                  <div className="team-detail-row">
+                    <span className="label">First Entry</span>
+                    <span>{t.firstEntry || "—"}</span>
+                  </div>
+                  <div className="team-detail-row">
+                    <span className="label">Titles</span>
+                    <span
+                      style={{
+                        color:
+                          t.worldChampionships > 0
+                            ? "var(--accent-red)"
+                            : "var(--text-secondary)",
+                        fontWeight: 700,
+                      }}
+                    >
+                      {t.worldChampionships ?? 0}
+                    </span>
+                  </div>
+                </div>
               </div>
-              <div className="team-detail-row">
-                <span className="label">Team Principal</span>
-                <span>{team.teamPrincipal}</span>
-              </div>
-              <div className="team-detail-row">
-                <span className="label">Power Unit</span>
-                <span>{team.powerUnit}</span>
-              </div>
-              <div className="team-detail-row">
-                <span className="label">Chassis</span>
-                <span>{team.chassis}</span>
-              </div>
-              <div className="team-detail-row">
-                <span className="label">First Entry</span>
-                <span>{team.firstEntry}</span>
-              </div>
-              <div className="team-detail-row">
-                <span className="label">Championships</span>
-                <span
-                  style={{
-                    color:
-                      team.worldChampionships > 0
-                        ? "var(--accent-red)"
-                        : "var(--text-secondary)",
-                    fontWeight: 700,
-                  }}
-                >
-                  {team.worldChampionships}
-                </span>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
+            </StaggerItem>
+          ))}
+        </Stagger>
+      )}
+    </PageTransition>
   );
-};
-
-export default UserTeams;
+}

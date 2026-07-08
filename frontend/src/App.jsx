@@ -4,9 +4,13 @@ import {
   Routes,
   Route,
   Navigate,
+  useLocation,
 } from "react-router-dom";
 import { AuthProvider, useAuth } from "./context/AuthContext";
+import { AnimatePresence } from "./components/motion";
 import Navbar from "./components/Navbar";
+import { Loader } from "./components/ui";
+
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import UserDashboard from "./pages/user/UserDashboard";
@@ -24,170 +28,58 @@ import AdminRaces from "./pages/admin/AdminRaces";
 import AdminStandings from "./pages/admin/AdminStandings";
 import AdminStaff from "./pages/admin/AdminStaff";
 
-// Protected route wrapper
 const ProtectedRoute = ({ children, adminOnly = false }) => {
   const { user, loading } = useAuth();
-  if (loading)
-    return (
-      <div className="loading">
-        <div className="spinner"></div>Loading...
-      </div>
-    );
-  if (!user) return <Navigate to="/login" />;
-  if (adminOnly && user.role !== "admin") return <Navigate to="/dashboard" />;
+  if (loading) return <Loader label="Warming up the grid" />;
+  if (!user) return <Navigate to="/login" replace />;
+  if (adminOnly && user.role !== "admin") return <Navigate to="/dashboard" replace />;
   return children;
 };
 
-const AppRoutes = () => {
+const RedirectHome = ({ children }) => {
   const { user } = useAuth();
+  if (user) return <Navigate to={user.role === "admin" ? "/admin" : "/dashboard"} replace />;
+  return children;
+};
 
+const protect = (element, adminOnly = false) => (
+  <ProtectedRoute adminOnly={adminOnly}>{element}</ProtectedRoute>
+);
+
+const AppRoutes = () => {
+  const location = useLocation();
   return (
-    <Routes>
-      <Route
-        path="/login"
-        element={
-          user ? (
-            <Navigate to={user.role === "admin" ? "/admin" : "/dashboard"} />
-          ) : (
-            <Login />
-          )
-        }
-      />
-      <Route
-        path="/register"
-        element={
-          user ? (
-            <Navigate to={user.role === "admin" ? "/admin" : "/dashboard"} />
-          ) : (
-            <Register />
-          )
-        }
-      />
+    <AnimatePresence mode="wait">
+      <Routes location={location} key={location.pathname}>
+        <Route path="/login" element={<RedirectHome><Login /></RedirectHome>} />
+        <Route path="/register" element={<RedirectHome><Register /></RedirectHome>} />
 
-      {/* User Routes */}
-      <Route
-        path="/dashboard"
-        element={
-          <ProtectedRoute>
-            <UserDashboard />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/teams"
-        element={
-          <ProtectedRoute>
-            <UserTeams />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/drivers"
-        element={
-          <ProtectedRoute>
-            <UserDrivers />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/drivers/:id"
-        element={
-          <ProtectedRoute>
-            <UserDriverProfile />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/races"
-        element={
-          <ProtectedRoute>
-            <UserRaces />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/standings"
-        element={
-          <ProtectedRoute>
-            <UserStandings />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/history"
-        element={
-          <ProtectedRoute>
-            <UserRaceHistory />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/team-staff"
-        element={
-          <ProtectedRoute>
-            <UserTeamStaff />
-          </ProtectedRoute>
-        }
-      />
+        {/* User */}
+        <Route path="/dashboard" element={protect(<UserDashboard />)} />
+        <Route path="/teams" element={protect(<UserTeams />)} />
+        <Route path="/drivers" element={protect(<UserDrivers />)} />
+        <Route path="/drivers/:id" element={protect(<UserDriverProfile />)} />
+        <Route path="/races" element={protect(<UserRaces />)} />
+        <Route path="/standings" element={protect(<UserStandings />)} />
+        <Route path="/history" element={protect(<UserRaceHistory />)} />
+        <Route path="/team-staff" element={protect(<UserTeamStaff />)} />
 
-      {/* Admin Routes */}
-      <Route
-        path="/admin"
-        element={
-          <ProtectedRoute adminOnly>
-            <AdminDashboard />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/admin/teams"
-        element={
-          <ProtectedRoute adminOnly>
-            <AdminTeams />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/admin/drivers"
-        element={
-          <ProtectedRoute adminOnly>
-            <AdminDrivers />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/admin/races"
-        element={
-          <ProtectedRoute adminOnly>
-            <AdminRaces />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/admin/standings"
-        element={
-          <ProtectedRoute adminOnly>
-            <AdminStandings />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/admin/staff"
-        element={
-          <ProtectedRoute adminOnly>
-            <AdminStaff />
-          </ProtectedRoute>
-        }
-      />
+        {/* Admin */}
+        <Route path="/admin" element={protect(<AdminDashboard />, true)} />
+        <Route path="/admin/teams" element={protect(<AdminTeams />, true)} />
+        <Route path="/admin/drivers" element={protect(<AdminDrivers />, true)} />
+        <Route path="/admin/races" element={protect(<AdminRaces />, true)} />
+        <Route path="/admin/standings" element={protect(<AdminStandings />, true)} />
+        <Route path="/admin/staff" element={protect(<AdminStaff />, true)} />
 
-      {/* Default */}
-      <Route path="/" element={<Navigate to="/login" />} />
-      <Route path="*" element={<Navigate to="/login" />} />
-    </Routes>
+        <Route path="/" element={<Navigate to="/login" replace />} />
+        <Route path="*" element={<Navigate to="/login" replace />} />
+      </Routes>
+    </AnimatePresence>
   );
 };
 
-function App() {
+export default function App() {
   return (
     <AuthProvider>
       <Router basename={import.meta.env.BASE_URL}>
@@ -201,5 +93,3 @@ function App() {
     </AuthProvider>
   );
 }
-
-export default App;

@@ -1,31 +1,44 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import API from "../../api";
+import { useFetch } from "../../hooks/useFetch";
+import {
+  PageTransition,
+  Reveal,
+  Stagger,
+  StaggerItem,
+} from "../../components/motion";
+import {
+  PageHeader,
+  Loader,
+  EmptyState,
+  StatCard,
+  teamAccent,
+} from "../../components/ui";
 
-const UserTeamStaff = () => {
-  const [staff, setStaff] = useState([]);
-  const [teams, setTeams] = useState([]);
+const DEPARTMENTS = [
+  "mechanical",
+  "physical",
+  "pitstop",
+  "strategy",
+  "management",
+  "aerodynamics",
+];
+
+const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
+
+export default function UserTeamStaff() {
   const [filterTeam, setFilterTeam] = useState("");
   const [filterDept, setFilterDept] = useState("");
-  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    Promise.all([API.get("/team-staff"), API.get("/teams")])
-      .then(([staffRes, teamsRes]) => {
-        setStaff(staffRes.data);
-        setTeams(teamsRes.data);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
-  }, []);
+  const { data, loading, error } = useFetch(
+    () => Promise.all([API.get("/team-staff"), API.get("/teams")]),
+    []
+  );
 
-  const departments = [
-    "mechanical",
-    "physical",
-    "pitstop",
-    "strategy",
-    "management",
-    "aerodynamics",
-  ];
+  if (loading) return <Loader label="Loading personnel…" />;
+
+  const staff = data?.[0]?.data || [];
+  const teams = data?.[1]?.data || [];
 
   const filtered = staff.filter((s) => {
     if (filterTeam && s.team?._id !== filterTeam) return false;
@@ -41,25 +54,24 @@ const UserTeamStaff = () => {
     groupedByTeam[teamName].push(s);
   });
 
-  if (loading)
-    return (
-      <div className="loading">
-        <div className="spinner"></div>Loading...
-      </div>
-    );
+  const teamCount = Object.keys(groupedByTeam).length;
+  const deptCount = new Set(filtered.map((s) => s.department)).size;
 
   return (
-    <div>
-      <div className="page-header">
-        <div>
-          <h1>
-            <span>Team</span> Management & Staff
-          </h1>
-          <p className="page-subtitle">
-            Mechanical, Physical, Pit Stop & Strategy personnel
-          </p>
-        </div>
-      </div>
+    <PageTransition>
+      <PageHeader
+        eyebrow="Personnel"
+        accent="TEAM"
+        title="Management & Staff"
+        subtitle="Mechanical, physical, pit stop & strategy personnel across the grid"
+        actions={
+          <div className="stats-grid" style={{ minWidth: 0 }}>
+            <StatCard label="Staff" value={filtered.length} accent="#e10600" />
+            <StatCard label="Teams" value={teamCount} accent="#27f4d2" />
+            <StatCard label="Depts" value={deptCount} accent="#3b82f6" />
+          </div>
+        }
+      />
 
       <div className="filter-bar">
         <select
@@ -82,97 +94,156 @@ const UserTeamStaff = () => {
           onChange={(e) => setFilterDept(e.target.value)}
         >
           <option value="">All Departments</option>
-          {departments.map((d) => (
+          {DEPARTMENTS.map((d) => (
             <option key={d} value={d}>
-              {d.charAt(0).toUpperCase() + d.slice(1)}
+              {cap(d)}
             </option>
           ))}
         </select>
-        <span style={{ color: "var(--text-muted)", fontSize: "13px" }}>
+        <span className="text-muted" style={{ fontSize: 13 }}>
           {filtered.length} staff members
         </span>
       </div>
 
-      {Object.entries(groupedByTeam).map(([teamName, members]) => {
-        const teamData = teams.find((t) => t.name === teamName);
-        return (
-          <div key={teamName} className="card" style={{ marginBottom: "16px" }}>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "12px",
-                marginBottom: "16px",
-              }}
+      {error && (
+        <EmptyState
+          icon="⚠️"
+          title="Couldn't load personnel"
+          message="There was a problem fetching the staff roster. Please try again."
+        />
+      )}
+
+      {!error && teamCount === 0 && (
+        <EmptyState
+          icon="🧰"
+          title="No staff found"
+          message="No personnel match your current filters. Try widening your selection."
+        />
+      )}
+
+      {!error &&
+        Object.entries(groupedByTeam).map(([teamName, members], gi) => {
+          const teamData = teams.find((t) => t.name === teamName);
+          const color = teamData?.color || "#666";
+          return (
+            <Reveal
+              key={teamName}
+              delay={0.04 * gi}
+              className="section"
             >
-              <div
-                className="team-color-bar"
-                style={{
-                  background: teamData?.color || "#666",
-                  minHeight: "30px",
-                  width: "4px",
-                }}
-              ></div>
-              <h3>{teamName}</h3>
-              <span style={{ color: "var(--text-muted)", fontSize: "13px" }}>
-                ({members.length} staff)
-              </span>
-            </div>
-            <div className="table-container" style={{ border: "none" }}>
-              <table>
-                <thead>
-                  <tr>
-                    <th>Name</th>
-                    <th>Role</th>
-                    <th>Department</th>
-                    <th>Experience</th>
-                    <th>Nationality</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {members.map((s) => (
-                    <tr key={s._id}>
-                      <td
-                        style={{
-                          fontWeight: 600,
-                          color: "var(--text-primary)",
-                        }}
-                      >
-                        {s.name}
-                      </td>
-                      <td>{s.role}</td>
-                      <td>
+              <div className="flex-between" style={{ marginBottom: 16 }}>
+                <div
+                  style={{ display: "flex", alignItems: "center", gap: 12 }}
+                >
+                  <span
+                    style={{
+                      width: 4,
+                      height: 26,
+                      borderRadius: 2,
+                      background: color,
+                      display: "inline-block",
+                    }}
+                  />
+                  <h3 style={{ margin: 0 }}>{teamName}</h3>
+                </div>
+                <span className="text-muted" style={{ fontSize: 13 }}>
+                  {members.length} staff
+                </span>
+              </div>
+
+              <Stagger className="card-grid">
+                {members.map((s) => (
+                  <StaggerItem key={s._id}>
+                    <div
+                      className="card"
+                      style={{
+                        ...teamAccent(color),
+                        borderLeft: `3px solid ${color}`,
+                      }}
+                    >
+                      <div className="card-header">
+                        <div>
+                          <div
+                            style={{
+                              fontWeight: 700,
+                              fontSize: 16,
+                              color: "var(--text-primary)",
+                            }}
+                          >
+                            {s.name}
+                          </div>
+                          <div
+                            className="text-muted"
+                            style={{ fontSize: 13, marginTop: 2 }}
+                          >
+                            {s.role}
+                          </div>
+                        </div>
                         <span
                           className={`badge badge-department badge-${s.department}`}
                         >
                           {s.department}
                         </span>
-                      </td>
-                      <td>{s.experience}</td>
-                      <td>{s.nationality}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        );
-      })}
+                      </div>
 
-      {Object.keys(groupedByTeam).length === 0 && (
-        <div
-          className="card"
-          style={{
-            textAlign: "center",
-            padding: "40px",
-            color: "var(--text-muted)",
-          }}
-        >
-          No staff found matching your filters.
-        </div>
-      )}
-    </div>
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 8,
+                          margin: "12px 0",
+                          fontSize: 13,
+                          color: "var(--text-secondary)",
+                        }}
+                      >
+                        <span
+                          style={{
+                            width: 10,
+                            height: 10,
+                            borderRadius: "50%",
+                            background: color,
+                            display: "inline-block",
+                            flexShrink: 0,
+                          }}
+                        />
+                        {teamName}
+                      </div>
+
+                      <div
+                        className="driver-stats"
+                        style={{
+                          display: "flex",
+                          gap: 20,
+                          borderTop: "1px solid var(--border, #262636)",
+                          paddingTop: 12,
+                        }}
+                      >
+                        <div className="driver-stat">
+                          <span
+                            className="val mono-num"
+                            style={{ color: "var(--text-primary)" }}
+                          >
+                            {s.experience ?? "—"}
+                          </span>
+                          <span className="lbl text-muted">Experience</span>
+                        </div>
+                        <div className="driver-stat">
+                          <span
+                            className="val"
+                            style={{ color: "var(--text-primary)" }}
+                          >
+                            {s.nationality || "—"}
+                          </span>
+                          <span className="lbl text-muted">Nationality</span>
+                        </div>
+                      </div>
+                    </div>
+                  </StaggerItem>
+                ))}
+              </Stagger>
+            </Reveal>
+          );
+        })}
+    </PageTransition>
   );
-};
-
-export default UserTeamStaff;
+}
