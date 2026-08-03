@@ -156,6 +156,11 @@ export function useRaceSimulation(drivers, { totalLaps = 50 } = {}) {
 
   return {
     snapshot,
+    // Live, mutated-in-place car state (dist updated every animation frame).
+    // TrackMap reads this per-frame to place cars exactly on the path — so
+    // motion stays smooth and on-track even at 8x, instead of chord-tweening
+    // between 20fps snapshots.
+    carsRef,
     running,
     finished,
     speed,

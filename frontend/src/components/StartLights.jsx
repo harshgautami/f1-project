@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from "react";
 import { motion, AnimatePresence, useReducedMotion } from "./motion";
+import LightGantry from "./LightGantry";
 
 /* The F1 start gantry: five columns light up red one-by-one, hold, then all go
    out — "lights out and away we go". Calls onComplete after they go out.
-   Used as the app intro splash and to launch a race in the live tracker. */
+   Used to launch a race in the live tracker. */
 export default function StartLights({
   onComplete,
   label = "Lights out and away we go",
@@ -33,18 +34,7 @@ export default function StartLights({
       exit={{ opacity: 0 }}
       transition={{ duration: 0.25 }}
     >
-      <div className={`lights-gantry ${out ? "out" : ""}`}>
-        {[0, 1, 2, 3, 4].map((col) => (
-          <div className="light-col" key={col}>
-            {[0, 1].map((row) => (
-              <span
-                key={row}
-                className={`light ${!out && col < lit ? "on" : ""}`}
-              />
-            ))}
-          </div>
-        ))}
-      </div>
+      <LightGantry lit={lit} out={out} className="lights-overlay-gantry" />
       <AnimatePresence>
         {out && (
           <motion.div

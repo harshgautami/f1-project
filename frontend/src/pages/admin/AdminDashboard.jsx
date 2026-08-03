@@ -10,7 +10,16 @@ import {
   Marquee,
   AnimatedNumber,
 } from "../../components/motion";
-import { PageHeader, Loader } from "../../components/ui";
+import { Loader } from "../../components/ui";
+import {
+  HubHero,
+  HubStat,
+  HubCTA,
+  HubCard,
+  RankList,
+  RankRow,
+  SectionHead,
+} from "../../components/hub";
 import { RACE_SEASON } from "../../config/season";
 import {
   IconGrid,
@@ -28,11 +37,11 @@ const CARDS = [
 ];
 
 const QUICK = [
-  ["/admin/teams", "Manage Teams", "btn-primary"],
-  ["/admin/drivers", "Manage Drivers", "btn-primary"],
-  ["/admin/races", "Manage Races", "btn-primary"],
-  ["/admin/standings", "Manage Standings", "btn-secondary"],
-  ["/admin/staff", "Manage Staff", "btn-secondary"],
+  ["/admin/teams", "Manage teams"],
+  ["/admin/drivers", "Manage drivers"],
+  ["/admin/races", "Manage races"],
+  ["/admin/standings", "Manage standings"],
+  ["/admin/staff", "Manage staff"],
 ];
 
 export default function AdminDashboard() {
@@ -53,46 +62,57 @@ export default function AdminDashboard() {
 
   if (loading) return <Loader label="Loading control room" />;
   const stats = data || { teams: 0, drivers: 0, races: 0, staff: 0 };
+  const total = CARDS.reduce((a, c) => a + (stats[c.key] || 0), 0);
+  const ranked = [...CARDS].sort((a, b) => stats[b.key] - stats[a.key]).slice(0, 3);
 
   return (
     <PageTransition>
-      <PageHeader
-        eyebrow="Control Room"
-        accent="Admin"
-        title="Dashboard"
-        subtitle="Manage every corner of your F1 world — teams, drivers, races, standings & staff."
+      <HubHero
+        chip="Control room"
+        chipTone="live"
+        meta={`${total} records`}
+        title="Race Control"
+        ghost={RACE_SEASON}
+        subtitle="Teams · drivers · races · standings · personnel"
+        panel={
+          <>
+            <HubStat tag="Records under management" value={total} />
+            <RankList>
+              {ranked.map((c, i) => (
+                <RankRow
+                  key={c.key}
+                  pos={i + 1}
+                  color={c.accent}
+                  name={c.label}
+                  right={`${stats[c.key]} rows`}
+                  index={i}
+                  lead={i === 0}
+                  to={c.link}
+                />
+              ))}
+            </RankList>
+            <HubCTA to="/live">Open live timing</HubCTA>
+          </>
+        }
       />
 
-      <Stagger className="stats-grid">
+      <SectionHead label="Collections" />
+
+      <Stagger className="hub-admin-grid">
         {CARDS.map((c) => (
           <StaggerItem key={c.key}>
-            <Link
-              to={c.link}
-              className="stat-card"
-              style={{ display: "block", textDecoration: "none", "--team-accent": c.accent }}
-            >
-              <div className="flex-between">
-                <span className="stat-value mono-num" style={{ color: c.accent }}>
-                  <AnimatedNumber value={stats[c.key]} />
-                </span>
-                <span style={{ color: c.accent, fontSize: 22, opacity: 0.9 }}>
-                  {c.icon}
-                </span>
-              </div>
-              <div className="stat-label">{c.label}</div>
-              <div
-                style={{
-                  marginTop: 12,
-                  fontSize: 12,
-                  fontWeight: 600,
-                  color: "var(--accent-red)",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 4,
-                }}
-              >
+            <Link to={c.link} className="hub-admin-card" style={{ "--team-accent": c.accent }}>
+              <span className="hub-admin-ghost mono-num" aria-hidden="true">
+                {stats[c.key]}
+              </span>
+              <span className="hub-admin-icon">{c.icon}</span>
+              <span className="hub-admin-value mono-num">
+                <AnimatedNumber value={stats[c.key]} />
+              </span>
+              <span className="hub-admin-label">{c.label}</span>
+              <span className="hub-admin-more">
                 Manage <IconChevronRight />
-              </div>
+              </span>
             </Link>
           </StaggerItem>
         ))}
@@ -112,19 +132,16 @@ export default function AdminDashboard() {
         />
       </div>
 
-      <Reveal className="card">
-        <div className="card-header">
-          <h3 style={{ fontFamily: "var(--font-display)", textTransform: "uppercase" }}>
-            Quick Actions
-          </h3>
-        </div>
-        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-          {QUICK.map(([to, label, variant]) => (
-            <Link key={to} to={to} className={`btn ${variant}`}>
-              {label}
-            </Link>
-          ))}
-        </div>
+      <Reveal>
+        <HubCard title="Quick actions">
+          <div className="hub-quick">
+            {QUICK.map(([to, label]) => (
+              <Link key={to} to={to} className="hub-quick-btn">
+                {label} <IconChevronRight />
+              </Link>
+            ))}
+          </div>
+        </HubCard>
       </Reveal>
     </PageTransition>
   );

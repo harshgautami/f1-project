@@ -2,14 +2,62 @@ import React from "react";
 import API from "../../api";
 import { useFetch } from "../../hooks/useFetch";
 import { PageTransition, Stagger, StaggerItem } from "../../components/motion";
+import { Loader, EmptyState, SearchBar, Avatar } from "../../components/ui";
 import {
-  PageHeader,
-  Loader,
-  EmptyState,
-  teamAccent,
-  SearchBar,
-  Avatar,
-} from "../../components/ui";
+  HubHero,
+  HubStat,
+  HubCTA,
+  HubBar,
+  RankList,
+  RankRow,
+  SectionHead,
+} from "../../components/hub";
+import { RACE_SEASON } from "../../config/season";
+
+const SPECS = [
+  ["Base", "base"],
+  ["Principal", "teamPrincipal"],
+  ["Power unit", "powerUnit"],
+  ["Chassis", "chassis"],
+  ["First entry", "firstEntry"],
+];
+
+/** Constructor card: colour crown, ghost short code, spec sheet. */
+function TeamCard({ team }) {
+  const color = team.color || "#e10600";
+  const code = (team.name || "").slice(0, 3).toUpperCase();
+  return (
+    <StaggerItem>
+      <article className="hub-team-card" style={{ "--team-accent": color }}>
+        <span className="hub-team-crown" />
+        <span className="hub-team-ghost" aria-hidden="true">
+          {code}
+        </span>
+
+        <div className="hub-team-head">
+          <Avatar src={team.logoUrl} name={team.name} color={color} size={44} rounded="11px" />
+          <div>
+            <h3>{team.name}</h3>
+            <div className="hub-team-full">{team.fullName}</div>
+          </div>
+        </div>
+
+        <dl className="hub-spec">
+          {SPECS.map(([label, key]) => (
+            <div key={key} className="hub-spec-row">
+              <dt>{label}</dt>
+              <dd>{team[key] || "—"}</dd>
+            </div>
+          ))}
+          <div className="hub-spec-row titles">
+            <dt>Titles</dt>
+            <dd className="mono-num">{team.worldChampionships ?? 0}</dd>
+          </div>
+        </dl>
+      </article>
+    </StaggerItem>
+  );
+}
 
 export default function UserTeams() {
   const { data, loading, error } = useFetch(() => API.get("/teams"), []);
@@ -20,7 +68,7 @@ export default function UserTeams() {
     return [...list].sort(
       (a, b) =>
         (b.worldChampionships || 0) - (a.worldChampionships || 0) ||
-        (a.name || "").localeCompare(b.name || "")
+        (a.name || "").localeCompare(b.name || ""),
     );
   }, [data]);
 
@@ -30,26 +78,48 @@ export default function UserTeams() {
     return teams.filter((t) =>
       [t.name, t.fullName, t.base]
         .filter(Boolean)
-        .some((field) => field.toLowerCase().includes(term))
+        .some((field) => field.toLowerCase().includes(term)),
     );
   }, [teams, q]);
 
+  const totalTitles = teams.reduce((a, t) => a + (t.worldChampionships || 0), 0);
+
+  if (loading) return <Loader label="Loading constructors" />;
+
   return (
     <PageTransition>
-      <PageHeader
-        eyebrow="Constructors"
-        accent="F1"
+      <HubHero
+        chip="Constructors"
+        chipTone="next"
+        meta={`${teams.length} teams`}
         title="Constructors"
-        subtitle={
-          teams.length
-            ? `All ${teams.length} teams competing this season`
-            : "Every constructor on the grid"
+        ghost={RACE_SEASON}
+        subtitle={`The ${teams.length} teams building for the ${RACE_SEASON} championship`}
+        accent={teams[0]?.color}
+        panel={
+          <>
+            <HubStat tag="Titles won" value={totalTitles} />
+            <RankList>
+              {teams.slice(0, 3).map((t, i) => (
+                <RankRow
+                  key={t._id}
+                  pos={i + 1}
+                  color={t.color}
+                  name={t.name}
+                  right={`${t.worldChampionships ?? 0} ${
+                    t.worldChampionships === 1 ? "title" : "titles"
+                  }`}
+                  index={i}
+                  lead={i === 0}
+                />
+              ))}
+            </RankList>
+            <HubCTA to="/team-staff">Meet the paddock</HubCTA>
+          </>
         }
       />
 
-      {loading ? (
-        <Loader label="Loading constructors…" />
-      ) : error ? (
+      {error ? (
         <EmptyState
           icon="⚠️"
           title="Couldn't load teams"
@@ -63,13 +133,14 @@ export default function UserTeams() {
         />
       ) : (
         <>
-          <div className="filter-bar">
-            <SearchBar
-              value={q}
-              onChange={setQ}
-              placeholder="Search teams…"
-            />
-          </div>
+          <SectionHead label="The field" />
+
+          <HubBar>
+            <SearchBar value={q} onChange={setQ} placeholder="Search teams…" />
+            <span className="hub-bar-count mono-num">
+              {filteredTeams.length}/{teams.length}
+            </span>
+          </HubBar>
 
           {filteredTeams.length === 0 ? (
             <EmptyState
@@ -78,64 +149,9 @@ export default function UserTeams() {
               message="Try adjusting your search."
             />
           ) : (
-            <Stagger className="card-grid">
+            <Stagger className="hub-card-grid">
               {filteredTeams.map((t) => (
-                <StaggerItem key={t._id}>
-                  <div className="team-card" style={teamAccent(t.color)}>
-                    <div
-                      className="team-card-top"
-                      style={{ background: t.color || "var(--team-accent)" }}
-                    />
-                    <div className="team-card-body">
-                      <h3>
-                        <Avatar
-                          src={t.logoUrl}
-                          name={t.name}
-                          color={t.color}
-                          size={40}
-                          rounded="10px"
-                        />
-                        {t.name}
-                      </h3>
-                      <div className="team-full-name">{t.fullName}</div>
-
-                      <div className="team-detail-row">
-                        <span className="label">Base</span>
-                        <span>{t.base || "—"}</span>
-                      </div>
-                      <div className="team-detail-row">
-                        <span className="label">Principal</span>
-                        <span>{t.teamPrincipal || "—"}</span>
-                      </div>
-                      <div className="team-detail-row">
-                        <span className="label">Power Unit</span>
-                        <span>{t.powerUnit || "—"}</span>
-                      </div>
-                      <div className="team-detail-row">
-                        <span className="label">Chassis</span>
-                        <span>{t.chassis || "—"}</span>
-                      </div>
-                      <div className="team-detail-row">
-                        <span className="label">First Entry</span>
-                        <span>{t.firstEntry || "—"}</span>
-                      </div>
-                      <div className="team-detail-row">
-                        <span className="label">Titles</span>
-                        <span
-                          style={{
-                            color:
-                              t.worldChampionships > 0
-                                ? "var(--accent-red)"
-                                : "var(--text-secondary)",
-                            fontWeight: 700,
-                          }}
-                        >
-                          {t.worldChampionships ?? 0}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </StaggerItem>
+                <TeamCard key={t._id} team={t} />
               ))}
             </Stagger>
           )}

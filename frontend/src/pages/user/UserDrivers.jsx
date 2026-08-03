@@ -3,15 +3,73 @@ import { Link } from "react-router-dom";
 import API from "../../api";
 import { useFetch } from "../../hooks/useFetch";
 import { PageTransition, Stagger, StaggerItem } from "../../components/motion";
+import { Loader, EmptyState, SearchBar, Avatar } from "../../components/ui";
 import {
-  PageHeader,
-  Loader,
-  EmptyState,
-  teamAccent,
-  SearchBar,
-  Avatar,
-} from "../../components/ui";
-import * as Icons from "../../components/Icons";
+  HubHero,
+  HubStat,
+  HubCTA,
+  HubBar,
+  HubSelect,
+  RankList,
+  RankRow,
+  SectionHead,
+} from "../../components/hub";
+import { RACE_SEASON } from "../../config/season";
+
+const fullName = (d) => `${d.firstName || ""} ${d.lastName || ""}`.trim();
+
+/** F1.com-style driver card: ghost race number, team wash, career strip. */
+function DriverCard({ driver }) {
+  const color = driver.team?.color || "#e10600";
+  return (
+    <StaggerItem>
+      <Link
+        to={`/drivers/${driver._id}`}
+        className="hub-driver-card"
+        style={{ "--team-accent": color }}
+      >
+        <span className="hub-driver-num mono-num" aria-hidden="true">
+          {driver.number}
+        </span>
+
+        <div className="hub-driver-top">
+          <Avatar
+            src={driver.imageUrl}
+            name={fullName(driver)}
+            color={color}
+            size={54}
+            rounded="12px"
+          />
+          <span className="hub-driver-flag">{driver.nationality}</span>
+        </div>
+
+        <h3 className="hub-driver-name">
+          <span>{driver.firstName}</span>
+          <b>{driver.lastName}</b>
+        </h3>
+
+        <div className="hub-driver-team">
+          <span className="hub-driver-team-bar" />
+          {driver.team?.name || "—"}
+        </div>
+
+        <div className="hub-driver-stats">
+          {[
+            ["Titles", driver.worldChampionships],
+            ["Wins", driver.totalRaceWins],
+            ["Podiums", driver.totalPodiums],
+            ["Points", driver.totalPoints],
+          ].map(([label, value]) => (
+            <div key={label} className="hub-driver-stat">
+              <span className="mono-num">{value ?? 0}</span>
+              <em>{label}</em>
+            </div>
+          ))}
+        </div>
+      </Link>
+    </StaggerItem>
+  );
+}
 
 export default function UserDrivers() {
   const [filterTeam, setFilterTeam] = useState("");
@@ -23,10 +81,7 @@ export default function UserDrivers() {
     error: driversError,
   } = useFetch(() => API.get("/drivers").then((r) => r.data), []);
 
-  const { data: teams } = useFetch(
-    () => API.get("/teams").then((r) => r.data),
-    []
-  );
+  const { data: teams } = useFetch(() => API.get("/teams").then((r) => r.data), []);
 
   // NOTE: all hooks must run before any early return (Rules of Hooks).
   const all = drivers || [];
@@ -42,15 +97,52 @@ export default function UserDrivers() {
     });
   }, [all, filterTeam, q]);
 
-  if (driversLoading) return <Loader label="Loading the grid…" />;
+  // Hero panel: the most decorated drivers currently on the grid.
+  const decorated = useMemo(
+    () =>
+      [...all]
+        .sort(
+          (a, b) =>
+            (b.worldChampionships || 0) - (a.worldChampionships || 0) ||
+            (b.totalRaceWins || 0) - (a.totalRaceWins || 0),
+        )
+        .slice(0, 3),
+    [all],
+  );
+
+  if (driversLoading) return <Loader label="Loading the grid" />;
 
   return (
     <PageTransition>
-      <PageHeader
-        eyebrow="The Grid"
-        accent="F1"
+      <HubHero
+        chip="The grid"
+        chipTone="next"
+        meta={`${all.length} drivers`}
         title="Drivers"
-        subtitle={`${all.length} drivers on the grid`}
+        ghost={RACE_SEASON}
+        subtitle={`Every driver contesting the ${RACE_SEASON} world championship`}
+        panel={
+          <>
+            <HubStat tag="On the grid" value={all.length} total={teamList.length * 2} />
+            <RankList>
+              {decorated.map((d, i) => (
+                <RankRow
+                  key={d._id}
+                  pos={i + 1}
+                  color={d.team?.color}
+                  name={fullName(d)}
+                  right={`${d.worldChampionships || 0} ${
+                    d.worldChampionships === 1 ? "title" : "titles"
+                  }`}
+                  index={i}
+                  lead={i === 0}
+                  to={`/drivers/${d._id}`}
+                />
+              ))}
+            </RankList>
+            <HubCTA to="/standings">See the championship</HubCTA>
+          </>
+        }
       />
 
       {driversError ? (
@@ -61,131 +153,51 @@ export default function UserDrivers() {
         />
       ) : (
         <>
-          <div className="filter-bar">
+          <SectionHead label="The line-up" />
+
+          <HubBar>
             <SearchBar
               value={q}
               onChange={setQ}
               placeholder="Search by name or nationality…"
             />
-            <select
-              className="form-control"
-              style={{ width: "auto" }}
+            <HubSelect
+              label="Team"
               value={filterTeam}
               onChange={(e) => setFilterTeam(e.target.value)}
-            >
-              <option value="">All Teams</option>
-              {teamList.map((t) => (
-                <option key={t._id} value={t._id}>
-                  {t.name}
-                </option>
-              ))}
-            </select>
-          </div>
+              options={[
+                { value: "", label: "All teams" },
+                ...teamList.map((t) => ({ value: t._id, label: t.name })),
+              ]}
+            />
+            <span className="hub-bar-count mono-num">
+              {filtered.length}/{all.length}
+            </span>
+          </HubBar>
 
           {filtered.length === 0 ? (
             <EmptyState
               icon="🏁"
               title="No drivers found"
-              message="No drivers match the selected team filter."
+              message="No drivers match the current search or team filter."
               action={
-                filterTeam ? (
+                filterTeam || q ? (
                   <button
                     className="btn"
-                    onClick={() => setFilterTeam("")}
+                    onClick={() => {
+                      setFilterTeam("");
+                      setQ("");
+                    }}
                   >
-                    Clear filter
+                    Clear filters
                   </button>
                 ) : null
               }
             />
           ) : (
-            <Stagger className="card-grid">
+            <Stagger className="hub-card-grid">
               {filtered.map((driver) => (
-                <StaggerItem key={driver._id}>
-                  <Link
-                    to={`/drivers/${driver._id}`}
-                    className="driver-card"
-                    style={teamAccent(driver.team?.color)}
-                  >
-                    <Avatar
-                      src={driver.imageUrl}
-                      name={`${driver.firstName} ${driver.lastName}`}
-                      color={driver.team?.color}
-                      size={52}
-                    />
-                    <div className="driver-info" style={{ flex: 1 }}>
-                      <div
-                        style={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                          alignItems: "flex-start",
-                          gap: 12,
-                        }}
-                      >
-                        <div>
-                          <h3>
-                            {driver.firstName} {driver.lastName}
-                          </h3>
-                          <div
-                            className="driver-team"
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 8,
-                            }}
-                          >
-                            <span
-                              style={{
-                                width: 10,
-                                height: 10,
-                                borderRadius: "50%",
-                                background:
-                                  driver.team?.color || "var(--text-muted)",
-                                flexShrink: 0,
-                              }}
-                            />
-                            {driver.team?.name || "—"}
-                          </div>
-                        </div>
-                        <div className="driver-number">#{driver.number}</div>
-                      </div>
-
-                      <div
-                        style={{
-                          fontSize: 12,
-                          color: "var(--text-muted)",
-                          margin: "6px 0 2px",
-                        }}
-                      >
-                        {driver.nationality}
-                      </div>
-
-                      <div className="driver-stats">
-                        <div className="driver-stat">
-                          <div
-                            className="val"
-                            style={{ color: "var(--accent-red)" }}
-                          >
-                            {driver.worldChampionships}
-                          </div>
-                          <div className="lbl">Titles</div>
-                        </div>
-                        <div className="driver-stat">
-                          <div className="val">{driver.totalRaceWins}</div>
-                          <div className="lbl">Wins</div>
-                        </div>
-                        <div className="driver-stat">
-                          <div className="val">{driver.totalPodiums}</div>
-                          <div className="lbl">Podiums</div>
-                        </div>
-                        <div className="driver-stat">
-                          <div className="val">{driver.totalPoints}</div>
-                          <div className="lbl">Points</div>
-                        </div>
-                      </div>
-                    </div>
-                  </Link>
-                </StaggerItem>
+                <DriverCard key={driver._id} driver={driver} />
               ))}
             </Stagger>
           )}

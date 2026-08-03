@@ -25,8 +25,11 @@ const Driver = require("../models/Driver");
 const Race = require("../models/Race");
 const Standing = require("../models/Standing");
 const TeamStaff = require("../models/TeamStaff");
+const RaceHistory = require("../models/RaceHistory");
 
 const API = "https://api.jolpi.ca/ergast/f1";
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // Ergast/Jolpica doesn't supply team colours; map by constructorId.
 const TEAM_COLORS = {
@@ -547,11 +550,71 @@ const TEAM_STAFF = {
   ]
 };
 
-async function get(pathname) {
+// Politely paced GET. Jolpica allows ~4 req/s burst / 500 req/hr sustained, and
+// a full multi-season sync makes hundreds of calls — so we space requests out
+// and back off on 429s.
+const MIN_GAP_MS = 280;
+let _lastReqAt = 0;
+async function get(pathname, { retries = 5 } = {}) {
   const url = `${API}/${pathname}`;
-  const res = await fetch(url, { headers: { "User-Agent": "f1-management-sync" } });
-  if (!res.ok) throw new Error(`GET ${url} -> ${res.status}`);
-  return res.json();
+  for (let attempt = 0; ; attempt++) {
+    const wait = MIN_GAP_MS - (Date.now() - _lastReqAt);
+    if (wait > 0) await sleep(wait);
+    _lastReqAt = Date.now();
+    const res = await fetch(url, {
+      headers: { "User-Agent": "f1-management-sync" },
+    });
+    if (res.status === 429 && attempt < retries) {
+      const retryAfter =
+        parseInt(res.headers.get("retry-after")) || Math.min(2 ** attempt, 30);
+      await sleep(retryAfter * 1000);
+      continue;
+    }
+    if (!res.ok) throw new Error(`GET ${url} -> ${res.status}`);
+    return res.json();
+  }
+}
+
+/**
+ * Fetches the real classified result for one Grand Prix (finishing order, grid,
+ * points, status, fastest lap). Pure — returns mapped docs, no DB writes.
+ */
+async function fetchRaceResults(season, round) {
+  const data = await get(`${season}/${round}/results.json?limit=100`);
+  const race = data.MRData.RaceTable.Races[0];
+  if (!race || !Array.isArray(race.Results) || !race.Results.length) return null;
+
+  let fastest = null;
+  const results = race.Results.map((r) => {
+    const flapTime = r.FastestLap && r.FastestLap.Time && r.FastestLap.Time.time;
+    const isFastest = r.FastestLap && r.FastestLap.rank === "1";
+    const row = {
+      position: parseInt(r.position) || 999,
+      positionText: r.positionText,
+      driver: `${r.Driver.givenName} ${r.Driver.familyName}`,
+      code: r.Driver.code || r.Driver.familyName.slice(0, 3).toUpperCase(),
+      number: parseInt(r.number) || parseInt(r.Driver.permanentNumber) || 0,
+      team: r.Constructor.name,
+      color: TEAM_COLORS[r.Constructor.constructorId] || "#e10600",
+      grid: parseInt(r.grid) || 0,
+      laps: parseInt(r.laps) || 0,
+      status: r.status,
+      time: (r.Time && r.Time.time) || r.status,
+      points: parseFloat(r.points) || 0,
+      fastestLap: !!isFastest,
+    };
+    if (isFastest) fastest = { code: row.code, time: flapTime };
+    return row;
+  });
+
+  const winner = results.find((x) => x.position === 1);
+  return {
+    results,
+    winnerName: winner ? winner.driver : "",
+    winnerTeam: winner ? winner.team : "",
+    fastestLap: fastest ? `${fastest.code} ${fastest.time}` : "",
+    laps: winner ? winner.laps : results[0] ? results[0].laps : 0,
+  };
 }
 
 /**
@@ -610,69 +673,105 @@ async function syncSeason(seasonArg, { log = () => {} } = {}) {
     await fetchSeason(seasonArg);
   log(`Season ${season}: ${teams.length} teams, ${races.length} races, ${driverStandings.length} drivers`);
 
-  // Teams — keep required placeholders only on first insert.
+  // The Team / Driver / TeamStaff collections model the CURRENT roster (the
+  // Teams & Drivers pages, the fallback live sim). Historical seasons persist
+  // their own data in the season-scoped Race / Standing / RaceHistory
+  // collections (which embed driver & team names), so we only touch the roster
+  // entities when syncing the current season — otherwise a multi-season sync
+  // would pile every driver who ever raced into the "current" grid.
+  const isCurrent = season === new Date().getFullYear();
+
   const teamIdByName = {};
-  for (const t of teams) {
-    const doc = await Team.findOneAndUpdate(
-      { name: t.name },
-      {
-        $set: { fullName: t.name, color: t.color },
-        $setOnInsert: { base: "—", teamPrincipal: "—", powerUnit: "—" },
-      },
-      { upsert: true, new: true, setDefaultsOnInsert: true },
-    );
-    teamIdByName[t.name] = doc._id;
-  }
-
-  // Drivers — sourced from standings so we can resolve their constructor.
   let driverCount = 0;
-  for (const s of driverStandings) {
-    const d = s.Driver;
-    const teamName = s.Constructors[0]?.name;
-    const teamId = teamName ? teamIdByName[teamName] : undefined;
-    if (!teamId) continue;
-    await Driver.findOneAndUpdate(
-      { firstName: d.givenName, lastName: d.familyName },
-      {
-        $set: {
-          number: parseInt(d.permanentNumber) || 0,
-          nationality: d.nationality,
-          dateOfBirth: d.dateOfBirth,
-          team: teamId,
-          totalPoints: parseFloat(s.points) || 0,
-          totalRaceWins: parseInt(s.wins) || 0,
+  if (isCurrent) {
+    // Teams — keep required placeholders only on first insert.
+    for (const t of teams) {
+      const doc = await Team.findOneAndUpdate(
+        { name: t.name },
+        {
+          $set: { fullName: t.name, color: t.color },
+          $setOnInsert: { base: "—", teamPrincipal: "—", powerUnit: "—" },
         },
-      },
-      { upsert: true, new: true, setDefaultsOnInsert: true },
-    );
-    driverCount++;
+        { upsert: true, new: true, setDefaultsOnInsert: true },
+      );
+      teamIdByName[t.name] = doc._id;
+    }
+
+    // Drivers — sourced from standings so we can resolve their constructor.
+    for (const s of driverStandings) {
+      const d = s.Driver;
+      const teamName = s.Constructors[0]?.name;
+      const teamId = teamName ? teamIdByName[teamName] : undefined;
+      if (!teamId) continue;
+      await Driver.findOneAndUpdate(
+        { firstName: d.givenName, lastName: d.familyName },
+        {
+          $set: {
+            number: parseInt(d.permanentNumber) || 0,
+            nationality: d.nationality,
+            dateOfBirth: d.dateOfBirth,
+            team: teamId,
+            totalPoints: parseFloat(s.points) || 0,
+            totalRaceWins: parseInt(s.wins) || 0,
+          },
+        },
+        { upsert: true, new: true, setDefaultsOnInsert: true },
+      );
+      driverCount++;
+    }
   }
 
-  // Races.
+  // Races (calendar).
   for (const r of races) {
     await Race.updateOne({ season: r.season, round: r.round }, { $set: r }, { upsert: true });
   }
 
+  // Real per-race results for completed rounds (finishing order, grid, points,
+  // fastest lap) — this is what powers the result-accurate live replay.
+  let resultCount = 0;
+  const completed = races.filter((r) => r.status === "completed");
+  for (const r of completed) {
+    const rr = await fetchRaceResults(season, r.round);
+    if (!rr || !rr.results.length) continue;
+    await Race.updateOne(
+      { season, round: r.round },
+      {
+        $set: {
+          results: rr.results,
+          winnerName: rr.winnerName,
+          winnerTeam: rr.winnerTeam,
+          fastestLap: rr.fastestLap,
+          laps: rr.laps,
+          status: "completed",
+        },
+      },
+    );
+    resultCount++;
+    log(`  · R${r.round} ${r.name}: ${rr.winnerName || "?"} won`);
+  }
+
   // Standings.
+  // Position can occasionally be missing in the feed — fall back to
+  // positionText, then the (already points-ordered) array index.
   const standingDocs = [
-    ...driverStandings.map((s) => ({
+    ...driverStandings.map((s, i) => ({
       season,
       type: "driver",
-      position: parseInt(s.position),
+      position: parseInt(s.position) || parseInt(s.positionText) || i + 1,
       name: `${s.Driver.givenName} ${s.Driver.familyName}`,
       team: s.Constructors[0]?.name || "",
       nationality: s.Driver.nationality,
-      points: parseFloat(s.points),
-      wins: parseInt(s.wins),
+      points: parseFloat(s.points) || 0,
+      wins: parseInt(s.wins) || 0,
     })),
-    ...constructorStandings.map((s) => ({
+    ...constructorStandings.map((s, i) => ({
       season,
       type: "constructor",
-      position: parseInt(s.position),
+      position: parseInt(s.position) || parseInt(s.positionText) || i + 1,
       name: s.Constructor.name,
       nationality: s.Constructor.nationality,
-      points: parseFloat(s.points),
-      wins: parseInt(s.wins),
+      points: parseFloat(s.points) || 0,
+      wins: parseInt(s.wins) || 0,
     })),
   ];
   for (const s of standingDocs) {
@@ -683,28 +782,60 @@ async function syncSeason(seasonArg, { log = () => {} } = {}) {
     );
   }
 
-  // Team staff (curated).
+  // Team staff (curated) — current roster only, like Teams/Drivers above.
   let staffCount = 0;
-  for (const [teamName, members] of Object.entries(TEAM_STAFF)) {
-    const teamId = teamIdByName[teamName];
-    if (!teamId || !Array.isArray(members)) continue;
-    for (const m of members) {
-      await TeamStaff.findOneAndUpdate(
-        { name: m.name, team: teamId },
-        {
-          $set: {
-            role: m.role,
-            department: m.department,
-            team: teamId,
-            teamName,
-            nationality: m.nationality || "",
-            experience: m.experience || "",
+  if (isCurrent) {
+    for (const [teamName, members] of Object.entries(TEAM_STAFF)) {
+      const teamId = teamIdByName[teamName];
+      if (!teamId || !Array.isArray(members)) continue;
+      for (const m of members) {
+        await TeamStaff.findOneAndUpdate(
+          { name: m.name, team: teamId },
+          {
+            $set: {
+              role: m.role,
+              department: m.department,
+              team: teamId,
+              teamName,
+              nationality: m.nationality || "",
+              experience: m.experience || "",
+            },
           },
-        },
-        { upsert: true, new: true, setDefaultsOnInsert: true },
-      );
-      staffCount++;
+          { upsert: true, new: true, setDefaultsOnInsert: true },
+        );
+        staffCount++;
+      }
     }
+  }
+
+  // Season history summary (drives the Race History page). Only meaningful for
+  // completed seasons — for the in-progress current season the "champion" isn't
+  // decided yet, so we skip it.
+  const nowYear = new Date().getFullYear();
+  if (season < nowYear && driverStandings.length && constructorStandings.length) {
+    const champ = driverStandings[0];
+    const ctorChamp = constructorStandings[0];
+    const teamWins = constructorStandings
+      .filter((c) => parseInt(c.wins) > 0)
+      .map((c) => ({
+        team: c.Constructor.name,
+        wins: parseInt(c.wins) || 0,
+        color: TEAM_COLORS[c.Constructor.constructorId] || "#e10600",
+      }));
+    await RaceHistory.updateOne(
+      { year: season },
+      {
+        $set: {
+          year: season,
+          totalRaces: races.length,
+          champion: `${champ.Driver.givenName} ${champ.Driver.familyName}`,
+          championTeam: champ.Constructors[0]?.name || "",
+          constructorChampion: ctorChamp.Constructor.name,
+          teamWins,
+        },
+      },
+      { upsert: true },
+    );
   }
 
   return {
@@ -712,15 +843,58 @@ async function syncSeason(seasonArg, { log = () => {} } = {}) {
     teams: teams.length,
     drivers: driverCount,
     races: races.length,
+    results: resultCount,
     standings: standingDocs.length,
     staff: staffCount,
   };
+}
+
+/**
+ * Syncs an inclusive range of seasons OLDEST → NEWEST. The ordering matters:
+ * the Driver collection carries season-scoped career fields that get overwritten
+ * each pass, so finishing on the most recent season leaves "current" data on the
+ * driver docs (historical seasons live in the season-scoped Standing/Race docs).
+ */
+async function syncRange(from, to, { log = () => {} } = {}) {
+  const summaries = [];
+  for (let year = from; year <= to; year++) {
+    log(`\n──────── ${year} ────────`);
+    try {
+      const s = await syncSeason(String(year), { log });
+      log(`✅ ${year}:`, s);
+      summaries.push(s);
+    } catch (err) {
+      log(`⚠️  ${year} failed: ${err.message}`);
+    }
+  }
+  return summaries;
 }
 
 // CLI entry — connects, syncs, disconnects.
 async function main() {
   const args = process.argv.slice(2);
   const dryRun = args.includes("--dry-run");
+  const rangeArg = args.find((a) => /^\d{4}-\d{4}$/.test(a));
+
+  // Range mode: e.g. `node scripts/sync.js 2010-2026`
+  if (rangeArg && !dryRun) {
+    const [from, to] = rangeArg.split("-").map(Number);
+    console.log(`\n🔄 Syncing seasons ${from}–${to} from Jolpica\n`);
+    await mongoose.connect(process.env.MONGODB_URI);
+    const summaries = await syncRange(from, to, { log: console.log });
+    await mongoose.disconnect();
+    const totals = summaries.reduce(
+      (a, s) => ({
+        seasons: a.seasons + 1,
+        races: a.races + s.races,
+        results: a.results + s.results,
+      }),
+      { seasons: 0, races: 0, results: 0 },
+    );
+    console.log("\n✅ Range sync complete:", totals, "\n");
+    return;
+  }
+
   const seasonArg = args.find((a) => a === "current" || /^\d{4}$/.test(a)) || "current";
 
   console.log(`\n🔄 Syncing "${seasonArg}" from Jolpica (${dryRun ? "DRY RUN" : "writing to DB"})\n`);
@@ -747,4 +921,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { syncSeason, fetchSeason, TEAM_STAFF, TEAM_COLORS };
+module.exports = { syncSeason, syncRange, fetchSeason, TEAM_STAFF, TEAM_COLORS };

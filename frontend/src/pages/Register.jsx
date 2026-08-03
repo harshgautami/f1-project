@@ -2,6 +2,8 @@ import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { PageTransition } from "../components/motion";
+import { AuthShell, HubCTA } from "../components/hub";
+import { RACE_SEASON } from "../config/season";
 
 export default function Register() {
   const [username, setUsername] = useState("");
@@ -41,80 +43,81 @@ export default function Register() {
 
   return (
     <PageTransition>
-      <div className="auth-container">
-        <div className="auth-card">
-          <div className="navbar-brand" style={{ marginBottom: 18 }}>
-            <span className="brand-mark">F1</span>
-            Management
-          </div>
-          <div className="eyebrow" style={{ marginBottom: 10 }}>
-            Join the grid
-          </div>
-          <h2>Create Account</h2>
-          <p className="subtitle">Start managing your F1 world.</p>
+      <AuthShell
+        chip="Join the grid"
+        title="Sign up"
+        ghost={RACE_SEASON}
+        blurb="Free access to every session, result and championship"
+        facts={[
+          ["17", "Seasons"],
+          ["24", "Circuits"],
+          ["∞", "Replays"],
+        ]}
+        heading="Create account"
+        sub="Set up your paddock pass in seconds."
+        foot={
+          <>
+            Already have an account? <Link to="/login">Sign in</Link>
+          </>
+        }
+      >
+        {error && <div className="error-message">{error}</div>}
 
-          {error && <div className="error-message">{error}</div>}
-
-          <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit}>
+          <div className="form-group">
+            <label>Username</label>
+            <input
+              type="text"
+              className="form-control"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              placeholder="Choose a username"
+              minLength={3}
+              required
+            />
+          </div>
+          <div className="form-group">
+            <label>Email</label>
+            <input
+              type="email"
+              className="form-control"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="you@example.com"
+              autoComplete="email"
+              required
+            />
+          </div>
+          <div className="form-row">
             <div className="form-group">
-              <label>Username</label>
+              <label>Password</label>
               <input
-                type="text"
+                type="password"
                 className="form-control"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                placeholder="Choose a username"
-                minLength={3}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Create a password"
+                minLength={6}
                 required
               />
             </div>
             <div className="form-group">
-              <label>Email</label>
+              <label>Confirm</label>
               <input
-                type="email"
+                type="password"
                 className="form-control"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@example.com"
-                autoComplete="email"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="Repeat password"
                 required
               />
             </div>
-            <div className="form-row">
-              <div className="form-group">
-                <label>Password</label>
-                <input
-                  type="password"
-                  className="form-control"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Create a password"
-                  minLength={6}
-                  required
-                />
-              </div>
-              <div className="form-group">
-                <label>Confirm</label>
-                <input
-                  type="password"
-                  className="form-control"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="Repeat password"
-                  required
-                />
-              </div>
-            </div>
-            <button type="submit" className="btn btn-primary" disabled={loading}>
-              {loading ? "Creating account…" : "Create Account"}
-            </button>
-          </form>
-
-          <div className="auth-link">
-            Already have an account? <Link to="/login">Sign In</Link>
           </div>
-        </div>
-      </div>
+          <HubCTA type="submit" disabled={loading}>
+            {loading ? "Creating account…" : "Create account"}
+          </HubCTA>
+        </form>
+      </AuthShell>
     </PageTransition>
   );
 }

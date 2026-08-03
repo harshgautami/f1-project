@@ -1,8 +1,9 @@
 import React, { useMemo, useState } from "react";
 import API from "../api";
 import { useFetch } from "../hooks/useFetch";
-import { PageHeader, Loader, EmptyState, Modal, Field } from "./ui";
+import { Loader, EmptyState, Modal, Field } from "./ui";
 import { Reveal } from "./motion";
+import { HubHero, HubStat, HubCTA, HubBar, HubSelect, SectionHead } from "./hub";
 import { IconPlus, IconEdit, IconTrash } from "./Icons";
 
 /* ---------------------------------------------------------------------------
@@ -213,39 +214,39 @@ export default function ResourceManager({ config }) {
 
   return (
     <div>
-      <PageHeader
-        eyebrow={config.eyebrow || "Admin"}
-        accent={config.accent || "Manage"}
+      <HubHero
+        chip={config.eyebrow || "Admin"}
+        chipTone="muted"
+        chipDot={false}
+        meta={`${rows.length} rows`}
         title={config.plural}
+        ghost={config.accent || "Admin"}
         subtitle={subtitle}
-        actions={
-          <button className="btn btn-primary" onClick={openCreate}>
-            <IconPlus /> Add {config.singular}
-          </button>
+        panel={
+          <>
+            <HubStat tag={`${config.plural} on file`} value={rows.length} duration={1.4} />
+            <HubCTA onClick={openCreate}>Add {config.singular}</HubCTA>
+          </>
         }
       />
 
       {config.filters && (
-        <div className="filter-bar">
+        <HubBar>
           {config.filters.map((f) => (
-            <select
+            <HubSelect
               key={f.param}
+              label={f.label}
               value={filterValues[f.param] || ""}
               onChange={(e) =>
                 setFilterValues((prev) => ({ ...prev, [f.param]: e.target.value }))
               }
-            >
-              <option value="">{f.all || `All ${f.label}`}</option>
-              {(typeof f.options === "function" ? f.options(refs) : f.options).map(
-                (o) => (
-                  <option key={o.value} value={o.value}>
-                    {o.label}
-                  </option>
-                ),
-              )}
-            </select>
+              options={[
+                { value: "", label: f.all || `All ${f.label}` },
+                ...(typeof f.options === "function" ? f.options(refs) : f.options),
+              ]}
+            />
           ))}
-        </div>
+        </HubBar>
       )}
 
       {list.error ? (
@@ -261,8 +262,10 @@ export default function ResourceManager({ config }) {
           }
         />
       ) : (
-        <Reveal className="table-container">
-          <table>
+        <>
+        <SectionHead label={`All ${config.plural.toLowerCase()}`} />
+        <Reveal className="hub-table-wrap">
+          <table className="hub-table">
             <thead>
               <tr>
                 {config.columns.map((c) => (
@@ -285,7 +288,7 @@ export default function ResourceManager({ config }) {
                     </td>
                   ))}
                   <td>
-                    <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+                    <div className="hub-row-actions">
                       <button
                         className="btn btn-sm btn-secondary"
                         onClick={() => openEdit(row)}
@@ -295,6 +298,7 @@ export default function ResourceManager({ config }) {
                       <button
                         className="btn btn-sm btn-danger"
                         onClick={() => handleDelete(row)}
+                        aria-label={`Delete ${config.singular.toLowerCase()}`}
                       >
                         <IconTrash />
                       </button>
@@ -305,6 +309,7 @@ export default function ResourceManager({ config }) {
             </tbody>
           </table>
         </Reveal>
+        </>
       )}
 
       <Modal

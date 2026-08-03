@@ -51,10 +51,18 @@ const raceSchema = new mongoose.Schema(
     results: [
       {
         position: Number,
+        positionText: String, // "1", "R" (retired), "D", etc.
         driver: String,
+        code: String, // 3-letter driver code (e.g. VER)
+        number: Number,
         team: String,
+        color: String, // team colour for the live replay
+        grid: Number, // starting grid slot (0 = pit lane)
+        laps: Number, // laps completed
+        status: String, // "Finished", "+1 Lap", "Accident", ...
         time: String,
         points: Number,
+        fastestLap: Boolean,
       },
     ],
   },

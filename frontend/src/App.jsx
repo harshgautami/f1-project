@@ -9,7 +9,8 @@ import {
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { AnimatePresence } from "./components/motion";
 import Navbar from "./components/Navbar";
-import StartLights from "./components/StartLights";
+import RaceLaunch from "./components/RaceLaunch";
+import FXBackground from "./components/FXBackground";
 import { Loader } from "./components/ui";
 
 // Auth pages load eagerly (first paint); everything else is code-split so the
@@ -34,10 +35,14 @@ const AdminStandings = lazy(() => import("./pages/admin/AdminStandings"));
 const AdminStaff = lazy(() => import("./pages/admin/AdminStaff"));
 
 const ProtectedRoute = ({ children, adminOnly = false }) => {
-  const { user, loading } = useAuth();
+  const { user, loading, launching } = useAuth();
   if (loading) return <Loader label="Warming up the grid" />;
   if (!user) return <Navigate to="/login" replace />;
   if (adminOnly && user.role !== "admin") return <Navigate to="/dashboard" replace />;
+  // While the post-login cinematic plays, hold a quiet placeholder instead of
+  // mounting the heavy dashboard — its charts/count-ups would starve the
+  // animation's timers. The real page mounts the instant the overlay clears.
+  if (launching) return <div className="launch-holding" aria-hidden="true" />;
   return children;
 };
 
@@ -87,34 +92,44 @@ const AppRoutes = () => {
   );
 };
 
-export default function App() {
-  // Play the "lights out" intro once per browser session.
-  const [intro, setIntro] = React.useState(
-    () => !sessionStorage.getItem("f1_intro"),
+function AppShell() {
+  const { launching, endLaunch, user } = useAuth();
+
+  // Warm the home-page chunk while the cinematic plays so the wipe reveals a
+  // rendered dashboard, not a loading spinner. (The page itself still mounts
+  // only after the overlay clears — see ProtectedRoute.)
+  React.useEffect(() => {
+    if (!launching || !user) return;
+    const warm =
+      user.role === "admin"
+        ? import("./pages/admin/AdminDashboard")
+        : import("./pages/user/UserDashboard");
+    warm.catch(() => {});
+  }, [launching, user]);
+
+  return (
+    <>
+      <div className="app-container">
+        <FXBackground />
+        {/* keep the chrome out of the frame while the cinematic plays */}
+        {!launching && <Navbar />}
+        <div className="main-content">
+          <AppRoutes />
+        </div>
+      </div>
+      {/* Post-login cinematic: lights out → driver's-POV launch down the grid. */}
+      <AnimatePresence>
+        {launching && <RaceLaunch key="launch" onComplete={endLaunch} />}
+      </AnimatePresence>
+    </>
   );
+}
+
+export default function App() {
   return (
     <AuthProvider>
       <Router basename={import.meta.env.BASE_URL}>
-        <div className="app-container">
-          <div className="fx-streaks" aria-hidden="true" />
-          <Navbar />
-          <div className="main-content">
-            <AppRoutes />
-          </div>
-        </div>
-        <AnimatePresence>
-          {intro && (
-            <StartLights
-              key="intro"
-              interval={340}
-              label="Formula 1 · Management"
-              onComplete={() => {
-                sessionStorage.setItem("f1_intro", "1");
-                setIntro(false);
-              }}
-            />
-          )}
-        </AnimatePresence>
+        <AppShell />
       </Router>
     </AuthProvider>
   );

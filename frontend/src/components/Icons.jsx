@@ -102,6 +102,18 @@ export const IconSearch = (p) => (
     <path d="M21 21l-4.3-4.3" />
   </Svg>
 );
+export const IconUser = (p) => (
+  <Svg {...p}>
+    <circle cx="12" cy="8" r="4" />
+    <path d="M5 21v-1a5 5 0 0 1 5-5h4a5 5 0 0 1 5 5v1" />
+  </Svg>
+);
+export const IconClock = (p) => (
+  <Svg {...p}>
+    <circle cx="12" cy="12" r="9" />
+    <path d="M12 7v5l3.5 2" />
+  </Svg>
+);
 export const IconPin = (p) => (
   <Svg {...p}>
     <path d="M12 21s7-6.5 7-11a7 7 0 0 0-14 0c0 4.5 7 11 7 11Z" />

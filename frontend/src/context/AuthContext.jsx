@@ -1,4 +1,10 @@
-import React, { createContext, useState, useContext, useEffect } from "react";
+import React, {
+  createContext,
+  useState,
+  useContext,
+  useEffect,
+  useCallback,
+} from "react";
 import API from "../api";
 
 const AuthContext = createContext();
@@ -15,6 +21,9 @@ const publicUser = (u) => ({
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  // Plays the post-login "race launch" cinematic once, while the home page
+  // lazy-loads behind the full-screen overlay.
+  const [launching, setLaunching] = useState(false);
 
   // On load: optimistically restore the cached user, then validate the token
   // against the server (/auth/me). A stale/tampered cache or expired token is
@@ -52,6 +61,7 @@ export const AuthProvider = ({ children }) => {
     localStorage.setItem("f1_token", res.data.token);
     localStorage.setItem("f1_user", JSON.stringify(res.data.user));
     setUser(res.data.user);
+    setLaunching(true);
     return res.data.user;
   };
 
@@ -60,6 +70,7 @@ export const AuthProvider = ({ children }) => {
     localStorage.setItem("f1_token", res.data.token);
     localStorage.setItem("f1_user", JSON.stringify(res.data.user));
     setUser(res.data.user);
+    setLaunching(true);
     return res.data.user;
   };
 
@@ -71,9 +82,22 @@ export const AuthProvider = ({ children }) => {
 
   const isAdmin = () => user && user.role === "admin";
 
+  // Stable identity so the RaceLaunch cinematic's timers aren't reset by
+  // unrelated re-renders (e.g. the home page loading behind the overlay).
+  const endLaunch = useCallback(() => setLaunching(false), []);
+
   return (
     <AuthContext.Provider
-      value={{ user, loading, login, register, logout, isAdmin }}
+      value={{
+        user,
+        loading,
+        login,
+        register,
+        logout,
+        isAdmin,
+        launching,
+        endLaunch,
+      }}
     >
       {children}
     </AuthContext.Provider>
