@@ -10,10 +10,12 @@ const REQUIRED = ["MONGODB_URI", "JWT_SECRET"];
 const validateEnv = () => {
   const missing = REQUIRED.filter((key) => !process.env[key]);
   if (missing.length > 0) {
-    console.error(
-      `Missing required environment variables: ${missing.join(", ")}`,
-    );
+    const msg = `Missing required environment variables: ${missing.join(", ")}`;
+    console.error(msg);
     console.error("See backend/.env.example for the full list.");
+    if (env.isProduction) {
+      throw new Error(msg);
+    }
     process.exit(1);
   }
 };
