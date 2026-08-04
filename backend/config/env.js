@@ -26,7 +26,9 @@ const env = {
   jwtSecret: process.env.JWT_SECRET,
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || "7d",
   // Comma-separated list of allowed browser origins for CORS.
-  clientUrls: (process.env.CLIENT_URL || "http://localhost:3000")
+  clientUrls: (
+    process.env.CLIENT_URL || "http://localhost:3000,https://f1-project-phi.vercel.app"
+  )
     .split(",")
     .map((url) => url.trim())
     .filter(Boolean),

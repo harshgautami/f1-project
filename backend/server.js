@@ -21,7 +21,13 @@ app.use(helmet());
 // Restrict cross-origin access to the configured client origin(s).
 app.use(
   cors({
-    origin: "https://f1-project-phi.vercel.app",
+    origin: (origin, callback) => {
+      if (!origin || env.clientUrls.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
     credentials: true,
   }),
 );
