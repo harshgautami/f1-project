@@ -4525,6 +4525,18 @@ button.hub-cta {
   color: var(--text-muted);
 }
 
+/* Full-screen faulty terminal backdrop, used on the login page only. */
+.login-faulty-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+.login-content {
+  position: relative;
+  z-index: 1;
+}
+
 /* ---- Schedule rows are links now ----------------------------------------- */
 a.hub-sched-row {
   color: inherit;
