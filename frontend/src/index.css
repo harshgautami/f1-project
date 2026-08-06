@@ -4525,8 +4525,11 @@ button.hub-cta {
   color: var(--text-muted);
 }
 
-/* Full-screen faulty terminal backdrop, used on the login page only. */
-.login-faulty-bg {
+/* Full-screen faulty terminal backdrop, used on the login page only.
+   Specificity beats .faulty-terminal-container (which loads later in the
+   bundle and would otherwise override position to `relative`, collapsing the
+   canvas to 0px). */
+.login-faulty-bg.faulty-terminal-container {
   position: fixed;
   inset: 0;
   z-index: 0;

@@ -28,7 +28,11 @@ export default function Login() {
 
   return (
     <PageTransition>
-      <FaultyTerminal className="login-faulty-bg" aria-hidden="true" />
+      <FaultyTerminal
+        className="login-faulty-bg"
+        aria-hidden="true"
+        style={{ position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none" }}
+      />
       <div className="login-content">
         <AuthShell
           chip="Lights out"
