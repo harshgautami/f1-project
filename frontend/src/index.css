@@ -5047,7 +5047,8 @@ button.hub-cta {
   padding: 34px;
   border: 1px solid var(--border-light);
   border-radius: var(--radius-lg);
-  background: rgba(14, 14, 22, 0.8);
+  /* opaque enough to read over the terminal shader without a live blur */
+  background: rgba(14, 14, 22, 0.94);
 
   box-shadow: var(--shadow-lg);
   animation: hubPanelIn 0.5s var(--ease-out) 0.05s both;

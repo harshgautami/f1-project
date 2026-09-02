@@ -2,10 +2,11 @@ import React from "react";
 import { useReducedMotion } from "framer-motion";
 import FaultyTerminal from "./FaultyTerminal";
 
-/* Login backdrop: a full-bleed faulty-terminal shader in F1 red, mounted in
-   the same fixed, behind-everything slot the ambient circuit backdrop uses on
-   every other page (see `.login-terminal` in index.css). With reduced motion
-   requested it holds a single frame instead of animating. */
+/* Auth backdrop (sign in + create account): a full-bleed faulty-terminal
+   shader in F1 red, mounted in the same fixed, behind-everything slot the
+   ambient circuit backdrop uses on every other page (see `.login-terminal` in
+   index.css). With reduced motion requested it holds a single frame instead
+   of animating. */
 
 const GRID_MUL = [2, 1];
 

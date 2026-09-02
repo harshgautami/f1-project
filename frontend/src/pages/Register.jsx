@@ -3,7 +3,6 @@ import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { PageTransition } from "../components/motion";
 import { AuthShell, HubCTA } from "../components/hub";
-import { RACE_SEASON } from "../config/season";
 
 export default function Register() {
   const [username, setUsername] = useState("");
@@ -44,15 +43,7 @@ export default function Register() {
   return (
     <PageTransition>
       <AuthShell
-        chip="Join the grid"
-        title="Sign up"
-        ghost={RACE_SEASON}
-        blurb="Free access to every session, result and championship"
-        facts={[
-          ["17", "Seasons"],
-          ["24", "Circuits"],
-          ["∞", "Replays"],
-        ]}
+        stage={false}
         heading="Create account"
         sub="Set up your paddock pass in seconds."
         foot={

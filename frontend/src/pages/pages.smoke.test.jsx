@@ -204,16 +204,17 @@ describe("every page renders in the hub design language", () => {
 
   // Several labels appear twice by design — once in the hero panel and once in
   // the stat strip below it — so these assert presence, not uniqueness.
-  it("login is a lone centred panel; register keeps the split auth shell", () => {
+  it("login and register are lone centred panels (terminal backdrop, no stage)", () => {
     const { container, unmount } = mount(<Login />);
     expect(screen.getAllByText("Sign in").length).toBeGreaterThanOrEqual(2);
     expect(container.querySelector(".auth-solo")).not.toBeNull();
     expect(container.querySelector(".auth-stage")).toBeNull();
     unmount();
 
-    mount(<Register />);
+    const reg = mount(<Register />);
     expect(screen.getAllByText("Create account").length).toBeGreaterThanOrEqual(2);
-    expect(screen.getByText("Join the grid")).toBeInTheDocument();
+    expect(reg.container.querySelector(".auth-solo")).not.toBeNull();
+    expect(reg.container.querySelector(".auth-stage")).toBeNull();
   });
 
   it("drivers list renders the hero and a driver card", async () => {

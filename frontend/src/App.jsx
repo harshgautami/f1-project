@@ -103,8 +103,10 @@ const AppRoutes = () => {
 
 function AppShell() {
   const { launching, endLaunch, user } = useAuth();
-  // The login screen trades the ambient circuit backdrop for the faulty terminal.
-  const onLogin = useLocation().pathname === "/login";
+  // The auth screens (sign in / create account) trade the ambient circuit
+  // backdrop for the faulty terminal.
+  const { pathname } = useLocation();
+  const onAuth = pathname === "/login" || pathname === "/register";
 
   // Warm the home-page chunk while the cinematic plays so the wipe reveals a
   // rendered dashboard, not a loading spinner. (The page itself still mounts
@@ -128,8 +130,8 @@ function AppShell() {
 
   return (
     <>
-      <div className={`app-container${onLogin ? " has-terminal" : ""}`}>
-        {onLogin ? (
+      <div className={`app-container${onAuth ? " has-terminal" : ""}`}>
+        {onAuth ? (
           <Suspense fallback={null}>
             <LoginTerminal />
           </Suspense>
