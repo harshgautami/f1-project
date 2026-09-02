@@ -4,6 +4,7 @@ import { useFetch } from "../hooks/useFetch";
 import { Loader, EmptyState, Modal, Field } from "./ui";
 import { Reveal } from "./motion";
 import { HubHero, HubStat, HubCTA, HubBar, HubSelect, SectionHead } from "./hub";
+import HubDropdown from "./HubDropdown";
 import { IconPlus, IconEdit, IconTrash } from "./Icons";
 
 /* ---------------------------------------------------------------------------
@@ -71,14 +72,15 @@ function FormField({ field, value, onChange, refs }) {
     const options =
       typeof field.options === "function" ? field.options(refs) : field.options || [];
     control = (
-      <select {...common}>
-        <option value="">{field.placeholder || "Select…"}</option>
-        {options.map((o) => (
-          <option key={o.value} value={o.value}>
-            {o.label}
-          </option>
-        ))}
-      </select>
+      <HubDropdown
+        variant="form"
+        name={field.key}
+        value={common.value}
+        required={field.required}
+        placeholder={field.placeholder || "Select…"}
+        options={options}
+        onChange={common.onChange}
+      />
     );
   } else if (field.type === "color") {
     control = (
@@ -127,6 +129,7 @@ export default function ResourceManager({ config }) {
   const list = useFetch(
     () => API.get(config.endpoint + query).then((r) => r.data),
     [query],
+    { key: `admin:${config.endpoint}${query}` },
   );
 
   // Reference data for selects (teams, etc.) — fetched once.
@@ -139,7 +142,7 @@ export default function ResourceManager({ config }) {
       ]),
     );
     return Object.fromEntries(entries);
-  }, []);
+  }, [], { key: `admin:refs:${config.endpoint}` });
   const refs = refsFetch.data || {};
 
   const [modalOpen, setModalOpen] = useState(false);

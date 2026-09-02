@@ -2,6 +2,12 @@ const mongoose = require("mongoose");
 
 const teamSchema = new mongoose.Schema(
   {
+    // Jolpica/Ergast constructorId ("red_bull") — the stable key the data sync
+    // upserts on, so renamed teams and seed/API name clashes can't duplicate.
+    constructorId: {
+      type: String,
+      index: { unique: true, sparse: true },
+    },
     name: {
       type: String,
       required: [true, "Team name is required"],

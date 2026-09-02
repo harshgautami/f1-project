@@ -19,6 +19,14 @@ const standingSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    // Jolpica ids (driver rows carry both; constructor rows only the latter),
+    // so careers and titles can be resolved without matching on names.
+    driverId: {
+      type: String,
+    },
+    constructorId: {
+      type: String,
+    },
     team: {
       type: String,
     },

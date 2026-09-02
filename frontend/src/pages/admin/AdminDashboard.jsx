@@ -2,6 +2,7 @@ import React from "react";
 import { Link } from "react-router-dom";
 import API from "../../api";
 import { useFetch } from "../../hooks/useFetch";
+import { loaders } from "../../data/loaders";
 import {
   PageTransition,
   Reveal,
@@ -45,20 +46,7 @@ const QUICK = [
 ];
 
 export default function AdminDashboard() {
-  const { data, loading } = useFetch(async () => {
-    const [t, d, r, s] = await Promise.all([
-      API.get("/teams"),
-      API.get("/drivers"),
-      API.get(`/races?season=${RACE_SEASON}`),
-      API.get("/team-staff"),
-    ]);
-    return {
-      teams: t.data.length,
-      drivers: d.data.length,
-      races: r.data.length,
-      staff: s.data.length,
-    };
-  }, []);
+  const { data, loading } = useFetch(loaders.adminCounts.fetch, [], { key: loaders.adminCounts.key });
 
   if (loading) return <Loader label="Loading control room" />;
   const stats = data || { teams: 0, drivers: 0, races: 0, staff: 0 };

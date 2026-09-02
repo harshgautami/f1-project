@@ -1,6 +1,7 @@
 import { useState } from "react";
 import API from "../../api";
 import { useFetch } from "../../hooks/useFetch";
+import { loaders } from "../../data/loaders";
 import { PageTransition, Reveal, Stagger, StaggerItem } from "../../components/motion";
 import { Loader, EmptyState } from "../../components/ui";
 import {
@@ -82,17 +83,9 @@ function UserStandings() {
   const [activeTab, setActiveTab] = useState("driver");
   const [season, setSeason] = useState(STANDINGS_SEASON);
 
-  const { data, loading, error } = useFetch(
-    () =>
-      Promise.all([
-        API.get(`/standings?season=${season}&type=driver`),
-        API.get(`/standings?season=${season}&type=constructor`),
-      ]).then(([dRes, cRes]) => ({
-        driver: dRes.data,
-        constructor: cRes.data,
-      })),
-    [season],
-  );
+  const { data, loading, error } = useFetch(loaders.standings(season).fetch, [season], {
+    key: loaders.standings(season).key,
+  });
 
   const isDriver = activeTab === "driver";
   const standings =

@@ -1,6 +1,7 @@
 import React from "react";
 import API from "../../api";
 import { useFetch } from "../../hooks/useFetch";
+import { loaders } from "../../data/loaders";
 import { PageTransition, Stagger, StaggerItem } from "../../components/motion";
 import { Loader, EmptyState, SearchBar, Avatar } from "../../components/ui";
 import {
@@ -60,7 +61,7 @@ function TeamCard({ team }) {
 }
 
 export default function UserTeams() {
-  const { data, loading, error } = useFetch(() => API.get("/teams"), []);
+  const { data, loading, error } = useFetch(loaders.teamsRes.fetch, [], { key: loaders.teamsRes.key });
   const [q, setQ] = React.useState("");
 
   const teams = React.useMemo(() => {

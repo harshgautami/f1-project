@@ -8,6 +8,8 @@ import {
 } from "react-router-dom";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { AnimatePresence } from "./components/motion";
+import { ROUTE_LOADERS, warmRoutes } from "./routes";
+import { warmData } from "./data/loaders";
 import Navbar from "./components/Navbar";
 import RaceLaunch from "./components/RaceLaunch";
 import FXBackground from "./components/FXBackground";
@@ -18,21 +20,27 @@ import { Loader } from "./components/ui";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 
-const UserDashboard = lazy(() => import("./pages/user/UserDashboard"));
-const UserTeams = lazy(() => import("./pages/user/UserTeams"));
-const UserDrivers = lazy(() => import("./pages/user/UserDrivers"));
-const UserDriverProfile = lazy(() => import("./pages/user/UserDriverProfile"));
-const UserRaces = lazy(() => import("./pages/user/UserRaces"));
-const UserStandings = lazy(() => import("./pages/user/UserStandings"));
-const UserRaceHistory = lazy(() => import("./pages/user/UserRaceHistory"));
-const UserTeamStaff = lazy(() => import("./pages/user/UserTeamStaff"));
-const LiveRace = lazy(() => import("./pages/user/LiveRace"));
-const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard"));
-const AdminTeams = lazy(() => import("./pages/admin/AdminTeams"));
-const AdminDrivers = lazy(() => import("./pages/admin/AdminDrivers"));
-const AdminRaces = lazy(() => import("./pages/admin/AdminRaces"));
-const AdminStandings = lazy(() => import("./pages/admin/AdminStandings"));
-const AdminStaff = lazy(() => import("./pages/admin/AdminStaff"));
+// The login backdrop pulls in a WebGL library (ogl) no other screen needs, so
+// it ships as its own chunk and only /login pays for it.
+const LoginTerminal = lazy(() => import("./components/LoginTerminal"));
+
+// The loaders are shared with routes.js so nav hover / idle prefetch pulls
+// the very same chunk React.lazy will ask for.
+const UserDashboard = lazy(ROUTE_LOADERS["/dashboard"]);
+const UserTeams = lazy(ROUTE_LOADERS["/teams"]);
+const UserDrivers = lazy(ROUTE_LOADERS["/drivers"]);
+const UserDriverProfile = lazy(ROUTE_LOADERS["/drivers/:id"]);
+const UserRaces = lazy(ROUTE_LOADERS["/races"]);
+const UserStandings = lazy(ROUTE_LOADERS["/standings"]);
+const UserRaceHistory = lazy(ROUTE_LOADERS["/history"]);
+const UserTeamStaff = lazy(ROUTE_LOADERS["/team-staff"]);
+const LiveRace = lazy(ROUTE_LOADERS["/live"]);
+const AdminDashboard = lazy(ROUTE_LOADERS["/admin"]);
+const AdminTeams = lazy(ROUTE_LOADERS["/admin/teams"]);
+const AdminDrivers = lazy(ROUTE_LOADERS["/admin/drivers"]);
+const AdminRaces = lazy(ROUTE_LOADERS["/admin/races"]);
+const AdminStandings = lazy(ROUTE_LOADERS["/admin/standings"]);
+const AdminStaff = lazy(ROUTE_LOADERS["/admin/staff"]);
 
 const ProtectedRoute = ({ children, adminOnly = false }) => {
   const { user, loading, launching } = useAuth();
@@ -56,12 +64,14 @@ const protect = (element, adminOnly = false) => (
   <ProtectedRoute adminOnly={adminOnly}>{element}</ProtectedRoute>
 );
 
+// No exit animation on route change: waiting for the old page to fade out
+// before the new one can even start loading cost ~400ms on every click.
+// Pages animate IN (PageTransition); leaving is immediate.
 const AppRoutes = () => {
   const location = useLocation();
   return (
-    <AnimatePresence mode="wait">
-      <Suspense fallback={<Loader label="Loading" />}>
-        <Routes location={location} key={location.pathname}>
+    <Suspense fallback={<Loader label="Loading" />}>
+      <Routes location={location} key={location.pathname}>
           <Route path="/login" element={<RedirectHome><Login /></RedirectHome>} />
           <Route path="/register" element={<RedirectHome><Register /></RedirectHome>} />
 
@@ -86,14 +96,15 @@ const AppRoutes = () => {
 
           <Route path="/" element={<Navigate to="/login" replace />} />
           <Route path="*" element={<Navigate to="/login" replace />} />
-        </Routes>
-      </Suspense>
-    </AnimatePresence>
+      </Routes>
+    </Suspense>
   );
 };
 
 function AppShell() {
   const { launching, endLaunch, user } = useAuth();
+  // The login screen trades the ambient circuit backdrop for the faulty terminal.
+  const onLogin = useLocation().pathname === "/login";
 
   // Warm the home-page chunk while the cinematic plays so the wipe reveals a
   // rendered dashboard, not a loading spinner. (The page itself still mounts
@@ -107,10 +118,24 @@ function AppShell() {
     warm.catch(() => {});
   }, [launching, user]);
 
+  // Once signed in, pull every route's chunk AND its data during idle time,
+  // so later navigation never waits on a download, a compile or a fetch.
+  React.useEffect(() => {
+    if (!user || launching) return;
+    warmRoutes(user.role === "admin");
+    warmData(user.role === "admin");
+  }, [user, launching]);
+
   return (
     <>
-      <div className="app-container">
-        <FXBackground />
+      <div className={`app-container${onLogin ? " has-terminal" : ""}`}>
+        {onLogin ? (
+          <Suspense fallback={null}>
+            <LoginTerminal />
+          </Suspense>
+        ) : (
+          <FXBackground />
+        )}
         {/* keep the chrome out of the frame while the cinematic plays */}
         {!launching && <Navbar />}
         <div className="main-content">

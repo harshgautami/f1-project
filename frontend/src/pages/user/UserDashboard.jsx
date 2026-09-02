@@ -2,6 +2,7 @@ import React, { useMemo } from "react";
 import { Link } from "react-router-dom";
 import API from "../../api";
 import { useFetch } from "../../hooks/useFetch";
+import { loaders } from "../../data/loaders";
 import { PageTransition, Stagger, Marquee } from "../../components/motion";
 import { Loader, EmptyState } from "../../components/ui";
 import {
@@ -240,13 +241,7 @@ function TitleFight({ standings }) {
 /* ---- Page --------------------------------------------------------------- */
 
 export default function UserDashboard() {
-  const { data, loading } = useFetch(async () => {
-    const [races, standings] = await Promise.all([
-      API.get(`/races?season=${RACE_SEASON}`),
-      API.get(`/standings?season=${STANDINGS_SEASON}&type=driver`),
-    ]);
-    return { races: races.data, standings: standings.data };
-  }, []);
+  const { data, loading } = useFetch(loaders.dashboard.fetch, [], { key: loaders.dashboard.key });
 
   if (loading) return <Loader label="Formation lap" />;
 

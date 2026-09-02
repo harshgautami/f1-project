@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import API from "../../api";
 import { useFetch } from "../../hooks/useFetch";
+import { loaders } from "../../data/loaders";
 import { PageTransition, Reveal, Stagger, StaggerItem } from "../../components/motion";
 import { Loader, EmptyState, SearchBar } from "../../components/ui";
 import {
@@ -30,10 +31,7 @@ export default function UserTeamStaff() {
   const [filterDept, setFilterDept] = useState("");
   const [q, setQ] = useState("");
 
-  const { data, loading, error } = useFetch(
-    () => Promise.all([API.get("/team-staff"), API.get("/teams")]),
-    [],
-  );
+  const { data, loading, error } = useFetch(loaders.staff.fetch, [], { key: loaders.staff.key });
 
   if (loading) return <Loader label="Loading personnel" />;
 

@@ -11,6 +11,9 @@ const raceSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    circuitId: {
+      type: String, // Jolpica circuitId, e.g. "monza"
+    },
     country: {
       type: String,
       required: true,

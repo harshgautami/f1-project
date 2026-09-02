@@ -14,10 +14,9 @@ export function PageTransition({ children, className }) {
   return (
     <motion.div
       className={className}
-      initial={reduce ? { opacity: 0 } : { opacity: 0, y: 18 }}
+      initial={reduce ? { opacity: 0 } : { opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      exit={reduce ? { opacity: 0 } : { opacity: 0, y: -12 }}
-      transition={{ duration: 0.4, ease: EASE }}
+      transition={{ duration: 0.26, ease: EASE }}
     >
       {children}
     </motion.div>
@@ -28,15 +27,15 @@ export function PageTransition({ children, className }) {
 export function Reveal({ children, delay = 0, y = 24, className, as = "div" }) {
   const reduce = useReducedMotion();
   const ref = useRef(null);
-  const inView = useInView(ref, { once: true, margin: "-60px" });
+  const inView = useInView(ref, { once: true, margin: "-30px" });
   const MotionTag = motion[as] || motion.div;
   return (
     <MotionTag
       ref={ref}
       className={className}
-      initial={reduce ? { opacity: 0 } : { opacity: 0, y }}
+      initial={reduce ? { opacity: 0 } : { opacity: 0, y: Math.min(y, 16) }}
       animate={inView ? { opacity: 1, y: 0 } : {}}
-      transition={{ duration: 0.5, ease: EASE, delay }}
+      transition={{ duration: 0.38, ease: EASE, delay: Math.min(delay, 0.25) }}
     >
       {children}
     </MotionTag>
@@ -45,11 +44,11 @@ export function Reveal({ children, delay = 0, y = 24, className, as = "div" }) {
 
 const staggerParent = {
   hidden: {},
-  show: { transition: { staggerChildren: 0.06, delayChildren: 0.05 } },
+  show: { transition: { staggerChildren: 0.035, delayChildren: 0.03 } },
 };
 const staggerChild = {
-  hidden: { opacity: 0, y: 20 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.45, ease: EASE } },
+  hidden: { opacity: 0, y: 14 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.32, ease: EASE } },
 };
 
 /** Container that staggers its <StaggerItem> children into view. */

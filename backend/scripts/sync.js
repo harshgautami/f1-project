@@ -1,19 +1,38 @@
 /* ---------------------------------------------------------------------------
-   Live F1 data sync.
+   Real F1 data sync — Jolpica-F1 API (the maintained Ergast successor).
 
-   Pulls the current (or a given) season's constructors, drivers, race calendar
-   and standings from the Jolpica-F1 API (the maintained successor to Ergast)
-   and UPSERTS them into MongoDB — non-destructive, unlike the seed script. Team
-   staff isn't available from any results API, so a curated current-season roster
-   (TEAM_STAFF below) is upserted alongside.
+   No API key is needed: https://api.jolpi.ca/ergast/f1 is free and public
+   (fair-use limits: ~4 req/s burst, ~500 req/hour sustained — requests below
+   are paced and back off on 429).
 
-   Usage:
-     node scripts/sync.js                # sync the CURRENT season
-     node scripts/sync.js 2024           # a specific season
-     node scripts/sync.js current --dry-run
+   What comes from the API (nothing here is hand-typed):
+     · calendar + real classified results for every round      → Race
+     · driver + constructor championship tables per season     → Standing
+     · season summaries (champions, wins per team)              → RaceHistory
+     · the CURRENT grid: constructors, drivers, numbers, codes  → Team / Driver
+     · driver careers (every start they ever made → per-season
+       wins/podiums/points/position, titles, career totals)    → Driver
+     · constructor titles + first entry year                    → Team
+   Hand-maintained (see rosterMeta.js): team colours, base, power unit, and the
+   team-staff roster — none of which any results API provides.
 
-   Exposes syncSeason() for programmatic use (assumes mongoose is already
-   connected). Requires Node 18+ (global fetch).
+   Everything is UPSERTED on stable Jolpica ids (constructorId / driverId /
+   season+round / season+type+position), so re-running is safe and idempotent.
+
+   Usage (from backend/):
+     node scripts/sync.js                  # current season (+ roster, careers)
+     node scripts/sync.js 2024             # one season
+     node scripts/sync.js 2013-2026        # an inclusive range, oldest → newest
+     node scripts/sync.js --all            # SEASON_FROM..current (13 yrs + now)
+   Flags:
+     --prune        also delete roster docs (teams/drivers/staff) not on the
+                    current grid, and season data outside the history window
+     --refresh      re-fetch results for rounds that already have them
+     --no-careers   skip the per-driver career build (fewer requests)
+     --dry-run      fetch + summarise the season, write nothing
+
+   Exposes syncSeason() / syncRange() for programmatic use (assumes mongoose
+   is already connected). Requires Node 18+ (global fetch).
    --------------------------------------------------------------------------- */
 
 const path = require("path");
@@ -26,559 +45,76 @@ const Race = require("../models/Race");
 const Standing = require("../models/Standing");
 const TeamStaff = require("../models/TeamStaff");
 const RaceHistory = require("../models/RaceHistory");
+const { TEAM_COLORS, TEAM_META, TEAM_STAFF, teamPrincipalFor } = require("./rosterMeta");
 
 const API = "https://api.jolpi.ca/ergast/f1";
+const CURRENT_YEAR = new Date().getFullYear();
+/** Seasons of history kept alongside the current one. */
+const HISTORY_YEARS = 13;
+const SEASON_FROM = CURRENT_YEAR - HISTORY_YEARS;
+/** First season with a constructors' championship. */
+const FIRST_CONSTRUCTOR_SEASON = 1958;
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const colorFor = (constructorId) => TEAM_COLORS[constructorId] || "#e10600";
+const fullName = (d) => `${d.givenName} ${d.familyName}`;
 
-// Ergast/Jolpica doesn't supply team colours; map by constructorId.
-const TEAM_COLORS = {
-  red_bull: "#3671C6",
-  ferrari: "#E8002D",
-  mercedes: "#27F4D2",
-  mclaren: "#FF8000",
-  aston_martin: "#229971",
-  alpine: "#0093CC",
-  williams: "#64C4FF",
-  rb: "#6692FF",
-  sauber: "#52E252",
-  audi: "#00D5B8",
-  haas: "#B6BABD",
-  cadillac: "#C69A5A",
-};
+/* ---- HTTP ------------------------------------------------------------------ */
 
-// Curated current-season staff keyed by the API constructor NAME. Populated
-// from research; safe to extend. Empty entries are simply skipped.
-const TEAM_STAFF = {
-  "Red Bull": [
-    {
-      "name": "Laurent Mekies",
-      "role": "Team Principal & CEO",
-      "department": "management",
-      "nationality": "French",
-      "experience": "20+ years in motorsport; RBR TP since July 2025"
-    },
-    {
-      "name": "Pierre Wache",
-      "role": "Technical Director",
-      "department": "mechanical",
-      "nationality": "French",
-      "experience": "With Red Bull since 2013"
-    },
-    {
-      "name": "Ben Waterhouse",
-      "role": "Chief Performance and Design Engineer",
-      "department": "mechanical",
-      "nationality": "British",
-      "experience": ""
-    },
-    {
-      "name": "Andrea Landi",
-      "role": "Head of Performance",
-      "department": "aerodynamics",
-      "nationality": "Italian",
-      "experience": "Ex-Ferrari Deputy Head of Vehicle Performance; joined July 2026"
-    },
-    {
-      "name": "Gianpiero Lambiase",
-      "role": "Head of Race Engineering / Race Engineer (Verstappen)",
-      "department": "strategy",
-      "nationality": "British",
-      "experience": "10+ years engineering Verstappen"
-    },
-    {
-      "name": "Richard Wood",
-      "role": "Race Engineer (Hadjar)",
-      "department": "strategy",
-      "nationality": "British",
-      "experience": "At Red Bull since 2012"
-    }
-  ],
-  "Ferrari": [
-    {
-      "name": "Frederic Vasseur",
-      "role": "Team Principal",
-      "department": "management",
-      "nationality": "French",
-      "experience": "Ferrari TP since 2023"
-    },
-    {
-      "name": "Jerome D'Ambrosio",
-      "role": "Deputy Team Principal",
-      "department": "management",
-      "nationality": "Belgian",
-      "experience": ""
-    },
-    {
-      "name": "Loic Serra",
-      "role": "Technical Director (Chassis)",
-      "department": "mechanical",
-      "nationality": "French",
-      "experience": "Joined from Mercedes"
-    },
-    {
-      "name": "Diego Tondi",
-      "role": "Head of Aerodynamics",
-      "department": "aerodynamics",
-      "nationality": "Italian",
-      "experience": ""
-    },
-    {
-      "name": "Fabio Montecchi",
-      "role": "Chief Project Engineer",
-      "department": "mechanical",
-      "nationality": "Italian",
-      "experience": ""
-    },
-    {
-      "name": "Bryan Bozzi",
-      "role": "Race Engineer (Leclerc)",
-      "department": "strategy",
-      "nationality": "Italian",
-      "experience": "Leclerc's engineer since 2024"
-    }
-  ],
-  "Mercedes": [
-    {
-      "name": "Toto Wolff",
-      "role": "Team Principal & CEO",
-      "department": "management",
-      "nationality": "Austrian",
-      "experience": "Mercedes TP since 2013"
-    },
-    {
-      "name": "James Allison",
-      "role": "Technical Director",
-      "department": "mechanical",
-      "nationality": "British",
-      "experience": "30+ years in F1"
-    },
-    {
-      "name": "Andrew Shovlin",
-      "role": "Trackside Engineering Director",
-      "department": "strategy",
-      "nationality": "British",
-      "experience": ""
-    },
-    {
-      "name": "Peter Bonnington",
-      "role": "Head of Race Engineering / Race Engineer (Antonelli)",
-      "department": "strategy",
-      "nationality": "British",
-      "experience": "Six titles engineering Hamilton"
-    },
-    {
-      "name": "Marcus Dudley",
-      "role": "Race Engineer (Russell)",
-      "department": "strategy",
-      "nationality": "British",
-      "experience": "Russell's engineer since 2023"
-    },
-    {
-      "name": "Matt Deane",
-      "role": "Chief Mechanic",
-      "department": "pitstop",
-      "nationality": "British",
-      "experience": ""
-    }
-  ],
-  "McLaren": [
-    {
-      "name": "Andrea Stella",
-      "role": "Team Principal",
-      "department": "management",
-      "nationality": "Italian",
-      "experience": "20+ years in F1; 2024 & 2025 Constructors' title-winning boss"
-    },
-    {
-      "name": "Peter Prodromou",
-      "role": "Technical Director, Aerodynamics",
-      "department": "aerodynamics",
-      "nationality": "British",
-      "experience": "30+ years in F1 aero"
-    },
-    {
-      "name": "Neil Houldey",
-      "role": "Technical Director, Engineering",
-      "department": "mechanical",
-      "nationality": "British",
-      "experience": ""
-    },
-    {
-      "name": "Rob Marshall",
-      "role": "Chief Designer",
-      "department": "mechanical",
-      "nationality": "British",
-      "experience": "Ex-Red Bull chief engineering officer"
-    },
-    {
-      "name": "Will Joseph",
-      "role": "Race Engineer (Lando Norris) / Director of Race Engineering",
-      "department": "strategy",
-      "nationality": "British",
-      "experience": "20 years at McLaren"
-    },
-    {
-      "name": "Tom Stallard",
-      "role": "Race Engineer (Oscar Piastri)",
-      "department": "strategy",
-      "nationality": "British",
-      "experience": "Long-serving McLaren race engineer; 2008 Olympic rowing silver medallist"
-    },
-    {
-      "name": "Piers Thynne",
-      "role": "Chief Operating Officer",
-      "department": "management",
-      "nationality": "British",
-      "experience": ""
-    }
-  ],
-  "Aston Martin": [
-    {
-      "name": "Adrian Newey",
-      "role": "Team Principal / Managing Technical Partner",
-      "department": "management",
-      "nationality": "British",
-      "experience": "Most successful car designer in F1 history"
-    },
-    {
-      "name": "Enrico Cardile",
-      "role": "Chief Technical Officer",
-      "department": "mechanical",
-      "nationality": "Italian",
-      "experience": "Former Ferrari technical director; joined July 2025"
-    },
-    {
-      "name": "Andy Cowell",
-      "role": "Chief Strategy Officer",
-      "department": "strategy",
-      "nationality": "British",
-      "experience": "Ex-Mercedes HPP MD; former team principal/CEO"
-    },
-    {
-      "name": "Chris Cronin",
-      "role": "Senior Race Engineer (Fernando Alonso)",
-      "department": "strategy",
-      "nationality": "British",
-      "experience": ""
-    },
-    {
-      "name": "Gary Gannon",
-      "role": "Race Engineer (Lance Stroll)",
-      "department": "strategy",
-      "nationality": "British",
-      "experience": ""
-    },
-    {
-      "name": "Lawrence Stroll",
-      "role": "Executive Chairman / Owner",
-      "department": "management",
-      "nationality": "Canadian",
-      "experience": ""
-    }
-  ],
-  "Alpine F1 Team": [
-    {
-      "name": "Flavio Briatore",
-      "role": "Executive Advisor (de facto team boss)",
-      "department": "management",
-      "nationality": "Italian",
-      "experience": "Former championship-winning Benetton/Renault boss"
-    },
-    {
-      "name": "Steve Nielsen",
-      "role": "Managing Director",
-      "department": "management",
-      "nationality": "British",
-      "experience": "Ex-F1/FIA sporting director; former Enstone sporting director"
-    },
-    {
-      "name": "David Sanchez",
-      "role": "Executive Technical Director",
-      "department": "mechanical",
-      "nationality": "French",
-      "experience": "Former Ferrari and McLaren senior technical figure"
-    },
-    {
-      "name": "David Wheater",
-      "role": "Technical Director, Aerodynamics",
-      "department": "aerodynamics",
-      "nationality": "British",
-      "experience": ""
-    },
-    {
-      "name": "Josh Peckett",
-      "role": "Race Engineer (Pierre Gasly)",
-      "department": "strategy",
-      "nationality": "British",
-      "experience": ""
-    },
-    {
-      "name": "Stuart Barlow",
-      "role": "Race Engineer (Franco Colapinto)",
-      "department": "strategy",
-      "nationality": "British",
-      "experience": ""
-    }
-  ],
-  "Williams": [
-    {
-      "name": "James Vowles",
-      "role": "Team Principal",
-      "department": "management",
-      "nationality": "British",
-      "experience": "20+ years in F1 (ex-Mercedes Motorsport Strategy Director)"
-    },
-    {
-      "name": "Pat Fry",
-      "role": "Chief Technical Officer",
-      "department": "mechanical",
-      "nationality": "British",
-      "experience": "30+ years in F1 (McLaren, Ferrari, Alpine)"
-    },
-    {
-      "name": "Adam Kenyon",
-      "role": "Head of Aerodynamics",
-      "department": "aerodynamics",
-      "nationality": "British",
-      "experience": "Ex-Red Bull and Mercedes aerodynamicist"
-    },
-    {
-      "name": "Sven Smeets",
-      "role": "Sporting Director",
-      "department": "management",
-      "nationality": "Belgian",
-      "experience": "At Williams since 2021"
-    },
-    {
-      "name": "Dave Robson",
-      "role": "Head of Vehicle Performance",
-      "department": "strategy",
-      "nationality": "British",
-      "experience": "Long-serving Williams senior engineer"
-    },
-    {
-      "name": "Gaetan Jego",
-      "role": "Race Engineer (Carlos Sainz)",
-      "department": "strategy",
-      "nationality": "French",
-      "experience": ""
-    },
-    {
-      "name": "James Urwin",
-      "role": "Race Engineer (Alex Albon)",
-      "department": "strategy",
-      "nationality": "British",
-      "experience": ""
-    }
-  ],
-  "RB F1 Team": [
-    {
-      "name": "Alan Permane",
-      "role": "Team Principal",
-      "department": "management",
-      "nationality": "British",
-      "experience": "30+ years in F1 (ex-Renault/Alpine Sporting Director)"
-    },
-    {
-      "name": "Tim Goss",
-      "role": "Chief Technical Officer",
-      "department": "mechanical",
-      "nationality": "British",
-      "experience": "Ex-McLaren and FIA technical director"
-    },
-    {
-      "name": "Guillaume Cattelani",
-      "role": "Deputy Technical Director (Performance)",
-      "department": "mechanical",
-      "nationality": "French",
-      "experience": ""
-    },
-    {
-      "name": "Andrea Landi",
-      "role": "Deputy Technical Director",
-      "department": "mechanical",
-      "nationality": "Italian",
-      "experience": ""
-    },
-    {
-      "name": "Alexandre Iliopoulos",
-      "role": "Race Engineer (Liam Lawson)",
-      "department": "strategy",
-      "nationality": "",
-      "experience": ""
-    }
-  ],
-  "Haas F1 Team": [
-    {
-      "name": "Ayao Komatsu",
-      "role": "Team Principal",
-      "department": "management",
-      "nationality": "Japanese",
-      "experience": "20+ years in F1; TP since 2024"
-    },
-    {
-      "name": "Andrea De Zordo",
-      "role": "Technical Director",
-      "department": "mechanical",
-      "nationality": "Italian",
-      "experience": ""
-    },
-    {
-      "name": "Mark Lowe",
-      "role": "Sporting Director",
-      "department": "management",
-      "nationality": "British",
-      "experience": ""
-    },
-    {
-      "name": "Laura Mueller",
-      "role": "Race Engineer (Esteban Ocon)",
-      "department": "strategy",
-      "nationality": "German",
-      "experience": "First female F1 race engineer (2025)"
-    },
-    {
-      "name": "Ronan O'Hare",
-      "role": "Race Engineer (Oliver Bearman)",
-      "department": "strategy",
-      "nationality": "British",
-      "experience": ""
-    }
-  ],
-  "Audi": [
-    {
-      "name": "Mattia Binotto",
-      "role": "Team Principal / Head of F1 Project (COO & CTO)",
-      "department": "management",
-      "nationality": "Italian",
-      "experience": "30+ years in F1 (ex-Ferrari Team Principal)"
-    },
-    {
-      "name": "James Key",
-      "role": "Technical Director (Chassis)",
-      "department": "mechanical",
-      "nationality": "British",
-      "experience": "25+ years in F1"
-    },
-    {
-      "name": "Stefan Dreyer",
-      "role": "Chief Technical Officer, Power Unit",
-      "department": "mechanical",
-      "nationality": "German",
-      "experience": ""
-    },
-    {
-      "name": "Alessandro Cinelli",
-      "role": "Head of Aerodynamics",
-      "department": "aerodynamics",
-      "nationality": "Italian",
-      "experience": ""
-    },
-    {
-      "name": "Giampaolo Dall'Ara",
-      "role": "Head of Race Engineering",
-      "department": "strategy",
-      "nationality": "Italian",
-      "experience": "20+ years at Sauber"
-    },
-    {
-      "name": "Iñaki Rueda",
-      "role": "Sporting Director",
-      "department": "management",
-      "nationality": "Spanish",
-      "experience": "ex-Ferrari Head of Race Strategy"
-    },
-    {
-      "name": "Stefano Sordo",
-      "role": "Performance Director",
-      "department": "strategy",
-      "nationality": "Italian",
-      "experience": ""
-    }
-  ],
-  "Cadillac F1 Team": [
-    {
-      "name": "Graeme Lowdon",
-      "role": "Team Principal",
-      "department": "management",
-      "nationality": "British",
-      "experience": "ex-Virgin/Marussia F1"
-    },
-    {
-      "name": "Nick Chester",
-      "role": "Technical Director",
-      "department": "mechanical",
-      "nationality": "British",
-      "experience": "25+ years (ex-Enstone/Renault)"
-    },
-    {
-      "name": "Pat Symonds",
-      "role": "Chief Technical Officer",
-      "department": "mechanical",
-      "nationality": "British",
-      "experience": "40+ years in F1"
-    },
-    {
-      "name": "Rob White",
-      "role": "Chief Operating Officer",
-      "department": "management",
-      "nationality": "British",
-      "experience": "ex-Renault power unit"
-    },
-    {
-      "name": "Xavi Marcos",
-      "role": "Chief Race Engineer",
-      "department": "strategy",
-      "nationality": "Spanish",
-      "experience": "ex-Ferrari race engineer"
-    },
-    {
-      "name": "Jon Tomlinson",
-      "role": "Head of Aerodynamics",
-      "department": "aerodynamics",
-      "nationality": "British",
-      "experience": "ex-Enstone aerodynamicist"
-    },
-    {
-      "name": "Naoki Tokunaga",
-      "role": "Technical Advisor",
-      "department": "management",
-      "nationality": "Japanese",
-      "experience": ""
-    }
-  ]
-};
-
-// Politely paced GET. Jolpica allows ~4 req/s burst / 500 req/hr sustained, and
-// a full multi-season sync makes hundreds of calls — so we space requests out
-// and back off on 429s.
+// Politely paced GET with a per-process cache (champion lookups repeat across
+// drivers/teams in one run) and 429 back-off honouring Retry-After.
 const MIN_GAP_MS = 280;
+const _cache = new Map();
 let _lastReqAt = 0;
-async function get(pathname, { retries = 5 } = {}) {
+let requestCount = 0;
+
+async function get(pathname, { retries = 6 } = {}) {
+  if (_cache.has(pathname)) return _cache.get(pathname);
   const url = `${API}/${pathname}`;
   for (let attempt = 0; ; attempt++) {
     const wait = MIN_GAP_MS - (Date.now() - _lastReqAt);
     if (wait > 0) await sleep(wait);
     _lastReqAt = Date.now();
-    const res = await fetch(url, {
-      headers: { "User-Agent": "f1-management-sync" },
-    });
-    if (res.status === 429 && attempt < retries) {
+    requestCount++;
+    let res;
+    try {
+      res = await fetch(url, { headers: { "User-Agent": "f1-management-sync" } });
+    } catch (err) {
+      if (attempt < retries) {
+        await sleep(Math.min(2 ** attempt, 30) * 1000);
+        continue;
+      }
+      throw err;
+    }
+    if ((res.status === 429 || res.status >= 500) && attempt < retries) {
       const retryAfter =
         parseInt(res.headers.get("retry-after")) || Math.min(2 ** attempt, 30);
       await sleep(retryAfter * 1000);
       continue;
     }
     if (!res.ok) throw new Error(`GET ${url} -> ${res.status}`);
-    return res.json();
+    const json = await res.json();
+    _cache.set(pathname, json);
+    return json;
   }
 }
 
-/**
- * Fetches the real classified result for one Grand Prix (finishing order, grid,
- * points, status, fastest lap). Pure — returns mapped docs, no DB writes.
- */
+/** Follows Ergast-style offset pagination and returns every page's payload. */
+async function getAllPages(pathname, pick, { limit = 100 } = {}) {
+  const out = [];
+  for (let offset = 0; ; offset += limit) {
+    const sep = pathname.includes("?") ? "&" : "?";
+    const data = await get(`${pathname}${sep}limit=${limit}&offset=${offset}`);
+    const total = parseInt(data.MRData.total) || 0;
+    out.push(...pick(data.MRData));
+    if (offset + limit >= total) break;
+  }
+  return out;
+}
+
+/* ---- Fetchers (pure: no DB writes) ------------------------------------------ */
+
+/** Real classified result for one Grand Prix. Null if not yet published. */
 async function fetchRaceResults(season, round) {
   const data = await get(`${season}/${round}/results.json?limit=100`);
   const race = data.MRData.RaceTable.Races[0];
@@ -587,21 +123,21 @@ async function fetchRaceResults(season, round) {
   let fastest = null;
   const results = race.Results.map((r) => {
     const flapTime = r.FastestLap && r.FastestLap.Time && r.FastestLap.Time.time;
-    const isFastest = r.FastestLap && r.FastestLap.rank === "1";
+    const isFastest = !!(r.FastestLap && r.FastestLap.rank === "1");
     const row = {
       position: parseInt(r.position) || 999,
       positionText: r.positionText,
-      driver: `${r.Driver.givenName} ${r.Driver.familyName}`,
+      driver: fullName(r.Driver),
       code: r.Driver.code || r.Driver.familyName.slice(0, 3).toUpperCase(),
       number: parseInt(r.number) || parseInt(r.Driver.permanentNumber) || 0,
       team: r.Constructor.name,
-      color: TEAM_COLORS[r.Constructor.constructorId] || "#e10600",
+      color: colorFor(r.Constructor.constructorId),
       grid: parseInt(r.grid) || 0,
       laps: parseInt(r.laps) || 0,
       status: r.status,
       time: (r.Time && r.Time.time) || r.status,
       points: parseFloat(r.points) || 0,
-      fastestLap: !!isFastest,
+      fastestLap: isFastest,
     };
     if (isFastest) fastest = { code: row.code, time: flapTime };
     return row;
@@ -617,10 +153,7 @@ async function fetchRaceResults(season, round) {
   };
 }
 
-/**
- * Fetches + maps a season's data. Returns the mapped docs. Pure (no DB writes),
- * so it can back a dry run.
- */
+/** A season's constructors, calendar and both championship tables. */
 async function fetchSeason(seasonArg) {
   const seg = !seasonArg || seasonArg === "current" ? "current" : String(seasonArg);
 
@@ -643,16 +176,11 @@ async function fetchSeason(seasonArg) {
   const driverStandings = dList?.DriverStandings || [];
   const constructorStandings = cList?.ConstructorStandings || [];
 
-  const teams = constructors.map((c) => ({
-    constructorId: c.constructorId,
-    name: c.name,
-    color: TEAM_COLORS[c.constructorId] || "#e10600",
-  }));
-
   const now = new Date();
   const raceDocs = races.map((r) => ({
     name: r.raceName,
     circuit: r.Circuit.circuitName,
+    circuitId: r.Circuit.circuitId,
     country: r.Circuit.Location.country,
     city: r.Circuit.Location.locality,
     date: new Date(`${r.date}T${r.time || "12:00:00Z"}`),
@@ -661,130 +189,243 @@ async function fetchSeason(seasonArg) {
     status: new Date(r.date) < now ? "completed" : "upcoming",
   }));
 
-  return { season, teams, races: raceDocs, driverStandings, constructorStandings };
+  return { season, constructors, races: raceDocs, driverStandings, constructorStandings };
 }
 
+/** Every race result a driver has ever recorded (paginated). */
+async function fetchDriverResults(driverId) {
+  const races = await getAllPages(`drivers/${driverId}/results.json`, (m) => m.RaceTable.Races);
+  return races.map((race) => {
+    const r = race.Results[0];
+    return {
+      season: parseInt(race.season),
+      round: parseInt(race.round),
+      positionText: r.positionText,
+      points: parseFloat(r.points) || 0,
+      constructorId: r.Constructor.constructorId,
+      constructorName: r.Constructor.name,
+    };
+  });
+}
+
+/** One driver's final championship standing in one season (null if none). */
+async function fetchDriverSeasonStanding(season, driverId) {
+  const data = await get(`${season}/drivers/${driverId}/driverStandings.json`);
+  const s = data.MRData.StandingsTable.StandingsLists[0]?.DriverStandings?.[0];
+  if (!s) return null;
+  return {
+    position: parseInt(s.position) || parseInt(s.positionText) || 0,
+    points: parseFloat(s.points) || 0,
+    wins: parseInt(s.wins) || 0,
+    constructorId: s.Constructors.at(-1)?.constructorId || "",
+    team: s.Constructors.at(-1)?.name || "",
+  };
+}
+
+/** constructorId of a season's constructors' champion (null if none). */
+async function fetchConstructorChampion(season) {
+  const data = await get(`${season}/constructorStandings/1.json`);
+  const c = data.MRData.StandingsTable.StandingsLists[0]?.ConstructorStandings?.[0];
+  return c ? c.Constructor.constructorId : null;
+}
+
+/** First season a constructor entered. */
+async function fetchConstructorFirstSeason(constructorId) {
+  const data = await get(`constructors/${constructorId}/seasons.json?limit=1`);
+  return parseInt(data.MRData.SeasonTable.Seasons[0]?.season) || undefined;
+}
+
+/* ---- Season standings cache ---------------------------------------------------
+   Career/title builds need "where did X finish in season Y" for many (X, Y).
+   Seasons fetched earlier in the same run answer that for free; older seasons
+   are answered from the Standing collection when it has ids, else the API. */
+
+const _seasonTables = new Map(); // season -> { driverStandings, constructorStandings }
+
+function rememberSeason(season, tables) {
+  _seasonTables.set(season, tables);
+}
+
+async function driverSeasonStanding(season, driverId) {
+  const cached = _seasonTables.get(season);
+  if (cached) {
+    const s = cached.driverStandings.find((x) => x.Driver.driverId === driverId);
+    if (!s) return null;
+    return {
+      position: parseInt(s.position) || parseInt(s.positionText) || 0,
+      points: parseFloat(s.points) || 0,
+      wins: parseInt(s.wins) || 0,
+      constructorId: s.Constructors.at(-1)?.constructorId || "",
+      team: s.Constructors.at(-1)?.name || "",
+    };
+  }
+  const doc = await Standing.findOne({ season, type: "driver", driverId }).lean();
+  if (doc) {
+    return { position: doc.position, points: doc.points, wins: doc.wins, team: doc.team };
+  }
+  return fetchDriverSeasonStanding(season, driverId);
+}
+
+async function constructorChampion(season) {
+  const cached = _seasonTables.get(season);
+  if (cached) {
+    const c = cached.constructorStandings.find((x) => parseInt(x.position) === 1);
+    return c ? c.Constructor.constructorId : null;
+  }
+  const doc = await Standing.findOne({
+    season,
+    type: "constructor",
+    position: 1,
+    constructorId: { $exists: true, $ne: "" },
+  }).lean();
+  if (doc) return doc.constructorId;
+  return fetchConstructorChampion(season);
+}
+
+/* ---- Career builders -------------------------------------------------------- */
+
 /**
- * Upserts a season into the current mongoose connection. Assumes an active
- * connection (the CLI/runner establishes it).
+ * A driver's full career from their real results: per-season history rows
+ * (team, position, wins, podiums, points) plus totals. Titles count only
+ * decided seasons — the in-progress one can't have a champion yet.
  */
-async function syncSeason(seasonArg, { log = () => {} } = {}) {
-  const { season, teams, races, driverStandings, constructorStandings } =
+async function buildDriverCareer(driverId) {
+  const rows = await fetchDriverResults(driverId);
+  const bySeason = new Map();
+  for (const r of rows) {
+    const agg = bySeason.get(r.season) || { wins: 0, podiums: 0, points: 0, team: "" };
+    if (r.positionText === "1") agg.wins++;
+    if (["1", "2", "3"].includes(r.positionText)) agg.podiums++;
+    agg.points += r.points;
+    agg.team = r.constructorName; // last constructor of the season wins
+    bySeason.set(r.season, agg);
+  }
+
+  const history = [];
+  for (const [year, agg] of [...bySeason].sort((a, b) => a[0] - b[0])) {
+    const st = await driverSeasonStanding(year, driverId);
+    history.push({
+      year,
+      team: st?.team || agg.team,
+      position: st?.position || 0,
+      wins: st?.wins ?? agg.wins,
+      podiums: agg.podiums,
+      // Championship points include sprints; race results alone don't.
+      points: st ? st.points : agg.points,
+    });
+  }
+
+  const years = history.map((h) => h.year);
+  const first = Math.min(...years);
+  const last = Math.max(...years);
+  return {
+    history,
+    worldChampionships: history.filter((h) => h.position === 1 && h.year < CURRENT_YEAR).length,
+    totalRaceWins: history.reduce((a, h) => a + h.wins, 0),
+    totalPodiums: history.reduce((a, h) => a + h.podiums, 0),
+    totalPoints: Math.round(history.reduce((a, h) => a + h.points, 0) * 100) / 100,
+    seasonsActive: years.length
+      ? `${first}–${last >= CURRENT_YEAR ? "present" : last}`
+      : "",
+  };
+}
+
+/** Constructors' titles (decided seasons only) and first entry year. */
+async function buildTeamHistory(constructorId) {
+  let worldChampionships = 0;
+  for (let y = FIRST_CONSTRUCTOR_SEASON; y < CURRENT_YEAR; y++) {
+    if ((await constructorChampion(y)) === constructorId) worldChampionships++;
+  }
+  const firstEntry = await fetchConstructorFirstSeason(constructorId);
+  return { worldChampionships, firstEntry };
+}
+
+/* ---- Sync ---------------------------------------------------------------------- */
+
+/**
+ * Upserts one season into the current mongoose connection. Returns a summary.
+ * Roster collections (Team / Driver / TeamStaff) model the CURRENT grid, so
+ * they're only written when syncing the current season; historical seasons
+ * write only the season-scoped Race / Standing / RaceHistory collections.
+ */
+async function syncSeason(
+  seasonArg,
+  { log = () => {}, prune = false, refresh = false, careers = true } = {},
+) {
+  const { season, constructors, races, driverStandings, constructorStandings } =
     await fetchSeason(seasonArg);
-  log(`Season ${season}: ${teams.length} teams, ${races.length} races, ${driverStandings.length} drivers`);
+  rememberSeason(season, { driverStandings, constructorStandings });
+  log(
+    `Season ${season}: ${constructors.length} constructors, ${races.length} rounds, ${driverStandings.length} drivers`,
+  );
 
-  // The Team / Driver / TeamStaff collections model the CURRENT roster (the
-  // Teams & Drivers pages, the fallback live sim). Historical seasons persist
-  // their own data in the season-scoped Race / Standing / RaceHistory
-  // collections (which embed driver & team names), so we only touch the roster
-  // entities when syncing the current season — otherwise a multi-season sync
-  // would pile every driver who ever raced into the "current" grid.
-  const isCurrent = season === new Date().getFullYear();
+  const isCurrent = season === CURRENT_YEAR;
+  const summary = { season, teams: 0, drivers: 0, races: races.length, results: 0, standings: 0, staff: 0, pruned: {} };
 
+  /* -- Current grid: teams, drivers, staff --------------------------------- */
+  const teamIdByCtor = {};
   const teamIdByName = {};
-  let driverCount = 0;
   if (isCurrent) {
-    // Teams — keep required placeholders only on first insert.
-    for (const t of teams) {
-      const doc = await Team.findOneAndUpdate(
-        { name: t.name },
-        {
-          $set: { fullName: t.name, color: t.color },
-          $setOnInsert: { base: "—", teamPrincipal: "—", powerUnit: "—" },
-        },
-        { upsert: true, new: true, setDefaultsOnInsert: true },
-      );
-      teamIdByName[t.name] = doc._id;
+    for (const c of constructors) {
+      const meta = TEAM_META[c.constructorId] || {};
+      const principal = teamPrincipalFor(c.name);
+      // Adopt a pre-existing doc by id, else by name (legacy seed data), else insert.
+      const existing =
+        (await Team.findOne({ constructorId: c.constructorId })) ||
+        (await Team.findOne({ name: c.name }));
+      const fields = {
+        constructorId: c.constructorId,
+        name: c.name,
+        fullName: meta.fullName || c.name,
+        color: colorFor(c.constructorId),
+        ...(meta.base && { base: meta.base }),
+        ...(meta.powerUnit && { powerUnit: meta.powerUnit }),
+        ...(principal && { teamPrincipal: principal }),
+      };
+      let doc;
+      if (existing) {
+        doc = await Team.findByIdAndUpdate(existing._id, { $set: fields }, { new: true });
+      } else {
+        doc = await Team.create({
+          base: "—",
+          teamPrincipal: "—",
+          powerUnit: "—",
+          ...fields,
+        });
+      }
+      teamIdByCtor[c.constructorId] = doc._id;
+      teamIdByName[c.name] = doc._id;
+      summary.teams++;
     }
 
-    // Drivers — sourced from standings so we can resolve their constructor.
+    // Drivers — from the standings table (everyone who has raced this season).
+    // A mid-season move lists several constructors; the last one is current.
+    const driverIds = [];
     for (const s of driverStandings) {
       const d = s.Driver;
-      const teamName = s.Constructors[0]?.name;
-      const teamId = teamName ? teamIdByName[teamName] : undefined;
+      const ctor = s.Constructors.at(-1);
+      const teamId = ctor && teamIdByCtor[ctor.constructorId];
       if (!teamId) continue;
-      await Driver.findOneAndUpdate(
-        { firstName: d.givenName, lastName: d.familyName },
-        {
-          $set: {
-            number: parseInt(d.permanentNumber) || 0,
-            nationality: d.nationality,
-            dateOfBirth: d.dateOfBirth,
-            team: teamId,
-            totalPoints: parseFloat(s.points) || 0,
-            totalRaceWins: parseInt(s.wins) || 0,
-          },
-        },
-        { upsert: true, new: true, setDefaultsOnInsert: true },
-      );
-      driverCount++;
+      driverIds.push(d.driverId);
+      const existing =
+        (await Driver.findOne({ driverId: d.driverId })) ||
+        (await Driver.findOne({ firstName: d.givenName, lastName: d.familyName }));
+      const fields = {
+        driverId: d.driverId,
+        code: d.code || d.familyName.slice(0, 3).toUpperCase(),
+        firstName: d.givenName,
+        lastName: d.familyName,
+        number: parseInt(d.permanentNumber) || 0,
+        nationality: d.nationality,
+        dateOfBirth: d.dateOfBirth,
+        team: teamId,
+      };
+      if (existing) await Driver.updateOne({ _id: existing._id }, { $set: fields });
+      else await Driver.create(fields);
+      summary.drivers++;
     }
-  }
 
-  // Races (calendar).
-  for (const r of races) {
-    await Race.updateOne({ season: r.season, round: r.round }, { $set: r }, { upsert: true });
-  }
-
-  // Real per-race results for completed rounds (finishing order, grid, points,
-  // fastest lap) — this is what powers the result-accurate live replay.
-  let resultCount = 0;
-  const completed = races.filter((r) => r.status === "completed");
-  for (const r of completed) {
-    const rr = await fetchRaceResults(season, r.round);
-    if (!rr || !rr.results.length) continue;
-    await Race.updateOne(
-      { season, round: r.round },
-      {
-        $set: {
-          results: rr.results,
-          winnerName: rr.winnerName,
-          winnerTeam: rr.winnerTeam,
-          fastestLap: rr.fastestLap,
-          laps: rr.laps,
-          status: "completed",
-        },
-      },
-    );
-    resultCount++;
-    log(`  · R${r.round} ${r.name}: ${rr.winnerName || "?"} won`);
-  }
-
-  // Standings.
-  // Position can occasionally be missing in the feed — fall back to
-  // positionText, then the (already points-ordered) array index.
-  const standingDocs = [
-    ...driverStandings.map((s, i) => ({
-      season,
-      type: "driver",
-      position: parseInt(s.position) || parseInt(s.positionText) || i + 1,
-      name: `${s.Driver.givenName} ${s.Driver.familyName}`,
-      team: s.Constructors[0]?.name || "",
-      nationality: s.Driver.nationality,
-      points: parseFloat(s.points) || 0,
-      wins: parseInt(s.wins) || 0,
-    })),
-    ...constructorStandings.map((s, i) => ({
-      season,
-      type: "constructor",
-      position: parseInt(s.position) || parseInt(s.positionText) || i + 1,
-      name: s.Constructor.name,
-      nationality: s.Constructor.nationality,
-      points: parseFloat(s.points) || 0,
-      wins: parseInt(s.wins) || 0,
-    })),
-  ];
-  for (const s of standingDocs) {
-    await Standing.updateOne(
-      { season: s.season, type: s.type, position: s.position },
-      { $set: s },
-      { upsert: true },
-    );
-  }
-
-  // Team staff (curated) — current roster only, like Teams/Drivers above.
-  let staffCount = 0;
-  if (isCurrent) {
+    // Team staff (curated) keyed by API constructor name.
     for (const [teamName, members] of Object.entries(TEAM_STAFF)) {
       const teamId = teamIdByName[teamName];
       if (!teamId || !Array.isArray(members)) continue;
@@ -803,16 +444,110 @@ async function syncSeason(seasonArg, { log = () => {} } = {}) {
           },
           { upsert: true, new: true, setDefaultsOnInsert: true },
         );
-        staffCount++;
+        summary.staff++;
       }
+    }
+
+    if (prune) {
+      const teamIds = Object.values(teamIdByCtor);
+      const ctorIds = Object.keys(teamIdByCtor);
+      const t = await Team.deleteMany({ constructorId: { $nin: ctorIds } });
+      const d = await Driver.deleteMany({
+        $or: [{ driverId: { $nin: driverIds } }, { team: { $nin: teamIds } }],
+      });
+      const s = await TeamStaff.deleteMany({ team: { $nin: teamIds } });
+      const window = { $lt: SEASON_FROM };
+      const r = await Race.deleteMany({ season: window });
+      const st = await Standing.deleteMany({ season: window });
+      const h = await RaceHistory.deleteMany({ year: window });
+      summary.pruned = {
+        teams: t.deletedCount,
+        drivers: d.deletedCount,
+        staff: s.deletedCount,
+        oldSeasonDocs: r.deletedCount + st.deletedCount + h.deletedCount,
+      };
+      log(`  · pruned`, summary.pruned);
     }
   }
 
-  // Season history summary (drives the Race History page). Only meaningful for
-  // completed seasons — for the in-progress current season the "champion" isn't
-  // decided yet, so we skip it.
-  const nowYear = new Date().getFullYear();
-  if (season < nowYear && driverStandings.length && constructorStandings.length) {
+  /* -- Calendar -------------------------------------------------------------- */
+  for (const r of races) {
+    await Race.updateOne({ season: r.season, round: r.round }, { $set: r }, { upsert: true });
+  }
+  // Rounds that vanished from the official calendar (renumbered/cancelled).
+  await Race.deleteMany({ season, round: { $nin: races.map((r) => r.round) } });
+
+  /* -- Real results for rounds that have been run ---------------------------- */
+  const have = new Set(
+    refresh
+      ? []
+      : (await Race.find({ season, "results.0": { $exists: true } }, { round: 1 }).lean()).map(
+          (r) => r.round,
+        ),
+  );
+  for (const r of races.filter((x) => x.status === "completed" && !have.has(x.round))) {
+    const rr = await fetchRaceResults(season, r.round);
+    if (!rr) continue;
+    await Race.updateOne(
+      { season, round: r.round },
+      {
+        $set: {
+          results: rr.results,
+          winnerName: rr.winnerName,
+          winnerTeam: rr.winnerTeam,
+          fastestLap: rr.fastestLap,
+          laps: rr.laps,
+          status: "completed",
+        },
+      },
+    );
+    summary.results++;
+    log(`  · R${r.round} ${r.name}: ${rr.winnerName || "?"} won`);
+  }
+
+  /* -- Championship tables --------------------------------------------------- */
+  const standingDocs = [
+    ...driverStandings.map((s, i) => ({
+      season,
+      type: "driver",
+      position: parseInt(s.position) || parseInt(s.positionText) || i + 1,
+      driverId: s.Driver.driverId,
+      name: fullName(s.Driver),
+      team: s.Constructors.at(-1)?.name || "",
+      constructorId: s.Constructors.at(-1)?.constructorId || "",
+      nationality: s.Driver.nationality,
+      points: parseFloat(s.points) || 0,
+      wins: parseInt(s.wins) || 0,
+    })),
+    ...constructorStandings.map((s, i) => ({
+      season,
+      type: "constructor",
+      position: parseInt(s.position) || parseInt(s.positionText) || i + 1,
+      constructorId: s.Constructor.constructorId,
+      name: s.Constructor.name,
+      nationality: s.Constructor.nationality,
+      points: parseFloat(s.points) || 0,
+      wins: parseInt(s.wins) || 0,
+    })),
+  ];
+  for (const s of standingDocs) {
+    await Standing.updateOne(
+      { season: s.season, type: s.type, position: s.position },
+      { $set: s },
+      { upsert: true },
+    );
+  }
+  // Rows beyond this season's table length are leftovers from an older sync.
+  await Standing.deleteMany({ season, type: "driver", position: { $gt: driverStandings.length } });
+  await Standing.deleteMany({
+    season,
+    type: "constructor",
+    position: { $gt: constructorStandings.length },
+  });
+  summary.standings = standingDocs.length;
+
+  /* -- Season summary (Race History page) — decided seasons only ------------- */
+  if (season < CURRENT_YEAR && driverStandings.length && constructorStandings.length) {
     const champ = driverStandings[0];
     const ctorChamp = constructorStandings[0];
     const teamWins = constructorStandings
@@ -820,7 +555,7 @@ async function syncSeason(seasonArg, { log = () => {} } = {}) {
       .map((c) => ({
         team: c.Constructor.name,
         wins: parseInt(c.wins) || 0,
-        color: TEAM_COLORS[c.Constructor.constructorId] || "#e10600",
+        color: colorFor(c.Constructor.constructorId),
       }));
     await RaceHistory.updateOne(
       { year: season },
@@ -828,8 +563,8 @@ async function syncSeason(seasonArg, { log = () => {} } = {}) {
         $set: {
           year: season,
           totalRaces: races.length,
-          champion: `${champ.Driver.givenName} ${champ.Driver.familyName}`,
-          championTeam: champ.Constructors[0]?.name || "",
+          champion: fullName(champ.Driver),
+          championTeam: champ.Constructors.at(-1)?.name || "",
           constructorChampion: ctorChamp.Constructor.name,
           teamWins,
         },
@@ -838,29 +573,40 @@ async function syncSeason(seasonArg, { log = () => {} } = {}) {
     );
   }
 
-  return {
-    season,
-    teams: teams.length,
-    drivers: driverCount,
-    races: races.length,
-    results: resultCount,
-    standings: standingDocs.length,
-    staff: staffCount,
-  };
+  /* -- Careers + titles (current grid only) ---------------------------------- */
+  if (isCurrent && careers) {
+    log(`  · building ${driverStandings.length} driver careers from real results…`);
+    for (const s of driverStandings) {
+      const d = s.Driver;
+      const career = await buildDriverCareer(d.driverId);
+      await Driver.updateOne({ driverId: d.driverId }, { $set: career });
+      log(
+        `    ${fullName(d)}: ${career.history.length} seasons, ${career.totalRaceWins} wins, ${career.totalPodiums} podiums, ${career.worldChampionships} titles`,
+      );
+    }
+    log(`  · constructor titles + first entries…`);
+    for (const c of constructors) {
+      const hist = await buildTeamHistory(c.constructorId);
+      await Team.updateOne({ constructorId: c.constructorId }, { $set: hist });
+      log(`    ${c.name}: ${hist.worldChampionships} titles, since ${hist.firstEntry}`);
+    }
+  }
+
+  return summary;
 }
 
 /**
- * Syncs an inclusive range of seasons OLDEST → NEWEST. The ordering matters:
- * the Driver collection carries season-scoped career fields that get overwritten
- * each pass, so finishing on the most recent season leaves "current" data on the
- * driver docs (historical seasons live in the season-scoped Standing/Race docs).
+ * Syncs an inclusive range of seasons OLDEST → NEWEST, so the current season
+ * (which writes the roster) is applied last and its standings caches are warm
+ * for the career build.
  */
-async function syncRange(from, to, { log = () => {} } = {}) {
+async function syncRange(from, to, opts = {}) {
+  const { log = () => {} } = opts;
   const summaries = [];
   for (let year = from; year <= to; year++) {
     log(`\n──────── ${year} ────────`);
     try {
-      const s = await syncSeason(String(year), { log });
+      const s = await syncSeason(String(year), opts);
       log(`✅ ${year}:`, s);
       summaries.push(s);
     } catch (err) {
@@ -870,48 +616,62 @@ async function syncRange(from, to, { log = () => {} } = {}) {
   return summaries;
 }
 
-// CLI entry — connects, syncs, disconnects.
+/* ---- CLI ------------------------------------------------------------------------ */
+
+function parseArgs(argv) {
+  const flags = new Set(argv.filter((a) => a.startsWith("--")));
+  const rangeArg = argv.find((a) => /^\d{4}-\d{4}$/.test(a));
+  const seasonArg = argv.find((a) => a === "current" || /^\d{4}$/.test(a));
+  let range = null;
+  if (flags.has("--all")) range = [SEASON_FROM, CURRENT_YEAR];
+  else if (rangeArg) range = rangeArg.split("-").map(Number);
+  return {
+    range,
+    season: seasonArg || "current",
+    prune: flags.has("--prune"),
+    refresh: flags.has("--refresh"),
+    careers: !flags.has("--no-careers"),
+    dryRun: flags.has("--dry-run"),
+  };
+}
+
 async function main() {
-  const args = process.argv.slice(2);
-  const dryRun = args.includes("--dry-run");
-  const rangeArg = args.find((a) => /^\d{4}-\d{4}$/.test(a));
-
-  // Range mode: e.g. `node scripts/sync.js 2010-2026`
-  if (rangeArg && !dryRun) {
-    const [from, to] = rangeArg.split("-").map(Number);
-    console.log(`\n🔄 Syncing seasons ${from}–${to} from Jolpica\n`);
-    await mongoose.connect(process.env.MONGODB_URI);
-    const summaries = await syncRange(from, to, { log: console.log });
-    await mongoose.disconnect();
-    const totals = summaries.reduce(
-      (a, s) => ({
-        seasons: a.seasons + 1,
-        races: a.races + s.races,
-        results: a.results + s.results,
-      }),
-      { seasons: 0, races: 0, results: 0 },
-    );
-    console.log("\n✅ Range sync complete:", totals, "\n");
-    return;
-  }
-
-  const seasonArg = args.find((a) => a === "current" || /^\d{4}$/.test(a)) || "current";
-
-  console.log(`\n🔄 Syncing "${seasonArg}" from Jolpica (${dryRun ? "DRY RUN" : "writing to DB"})\n`);
+  const { range, season, prune, refresh, careers, dryRun } = parseArgs(process.argv.slice(2));
+  const started = Date.now();
+  const elapsed = () => `${Math.round((Date.now() - started) / 1000)}s, ${requestCount} requests`;
 
   if (dryRun) {
-    const data = await fetchSeason(seasonArg);
-    console.log(`Season ${data.season}: ${data.teams.length} teams, ${data.races.length} races, ${data.driverStandings.length} drivers`);
-    console.log("teams:", data.teams.map((t) => t.name).join(", "));
-    console.log("leader:", data.driverStandings[0]?.Driver.familyName, data.driverStandings[0]?.points + "pts");
-    console.log("\n✅ Dry run complete — no data written.\n");
+    const data = await fetchSeason(season);
+    console.log(`\nDRY RUN — season ${data.season}`);
+    console.log(`  ${data.constructors.length} constructors: ${data.constructors.map((c) => c.name).join(", ")}`);
+    console.log(`  ${data.races.length} rounds (${data.races.filter((r) => r.status === "completed").length} run)`);
+    console.log(`  ${data.driverStandings.length} drivers; leader ${data.driverStandings[0] ? fullName(data.driverStandings[0].Driver) : "—"} ${data.driverStandings[0]?.points ?? ""}pts`);
+    console.log(`\n✅ Dry run complete — nothing written (${elapsed()}).\n`);
     return;
   }
 
   await mongoose.connect(process.env.MONGODB_URI);
-  const summary = await syncSeason(seasonArg, { log: console.log });
-  await mongoose.disconnect();
-  console.log("\n✅ Sync complete:", summary, "\n");
+  const opts = { log: console.log, prune, refresh, careers };
+  try {
+    if (range) {
+      const [from, to] = range;
+      console.log(`\n🔄 Syncing seasons ${from}–${to} from Jolpica${prune ? " (with prune)" : ""}\n`);
+      const summaries = await syncRange(from, to, opts);
+      const totals = summaries.reduce(
+        (a, s) => ({ seasons: a.seasons + 1, races: a.races + s.races, results: a.results + s.results }),
+        { seasons: 0, races: 0, results: 0 },
+      );
+      const failed = to - from + 1 - summaries.length;
+      console.log(`\n✅ Range sync complete (${elapsed()}):`, totals, failed ? `— ${failed} season(s) FAILED, re-run them` : "", "\n");
+      if (failed) process.exitCode = 1;
+    } else {
+      console.log(`\n🔄 Syncing "${season}" from Jolpica${prune ? " (with prune)" : ""}\n`);
+      const summary = await syncSeason(season, opts);
+      console.log(`\n✅ Sync complete (${elapsed()}):`, summary, "\n");
+    }
+  } finally {
+    await mongoose.disconnect();
+  }
 }
 
 if (require.main === module) {
@@ -921,4 +681,16 @@ if (require.main === module) {
   });
 }
 
-module.exports = { syncSeason, syncRange, fetchSeason, TEAM_STAFF, TEAM_COLORS };
+module.exports = {
+  API,
+  CURRENT_YEAR,
+  SEASON_FROM,
+  HISTORY_YEARS,
+  get,
+  fetchSeason,
+  fetchRaceResults,
+  syncSeason,
+  syncRange,
+  TEAM_STAFF,
+  TEAM_COLORS,
+};

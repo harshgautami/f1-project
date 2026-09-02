@@ -20,6 +20,9 @@ module.exports = crudRouter({
     { param: "status", field: "status" },
   ],
   sort: { date: 1 },
+  // The per-race classification (22 rows × every round) is only needed by the
+  // replay/dashboard — the calendar and admin list get it on ?include=results.
+  omitFromList: ["results"],
   populateOne: { path: "winner", select: "firstName lastName" },
   validators,
 });

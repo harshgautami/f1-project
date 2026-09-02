@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from "react";
 import API from "../../api";
 import { useFetch } from "../../hooks/useFetch";
+import { loaders } from "../../data/loaders";
 import { useRaceSimulation } from "../../hooks/useRaceSimulation";
 import { useRaceReplay } from "../../hooks/useRaceReplay";
 import { PageTransition, motion, AnimatePresence } from "../../components/motion";
@@ -233,13 +234,9 @@ export default function LiveRace() {
   const [season, setSeason] = useState(RACE_SEASON);
   const [round, setRound] = useState(null);
 
-  const { data, loading, error } = useFetch(async () => {
-    const [drivers, races] = await Promise.all([
-      API.get("/drivers"),
-      API.get(`/races?season=${season}`),
-    ]);
-    return { drivers: drivers.data, races: races.data };
-  }, [season]);
+  const { data, loading, error } = useFetch(loaders.live(season).fetch, [season], {
+    key: loaders.live(season).key,
+  });
 
   // Switching season clears the selected round so the default re-resolves.
   useEffect(() => {

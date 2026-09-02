@@ -2,6 +2,7 @@ import React, { useState, useMemo } from "react";
 import { Link } from "react-router-dom";
 import API from "../../api";
 import { useFetch } from "../../hooks/useFetch";
+import { loaders } from "../../data/loaders";
 import { PageTransition, Stagger, StaggerItem } from "../../components/motion";
 import { Loader, EmptyState, SearchBar, Avatar } from "../../components/ui";
 import {
@@ -79,9 +80,9 @@ export default function UserDrivers() {
     data: drivers,
     loading: driversLoading,
     error: driversError,
-  } = useFetch(() => API.get("/drivers").then((r) => r.data), []);
+  } = useFetch(loaders.drivers.fetch, [], { key: loaders.drivers.key });
 
-  const { data: teams } = useFetch(() => API.get("/teams").then((r) => r.data), []);
+  const { data: teams } = useFetch(loaders.teams.fetch, [], { key: loaders.teams.key });
 
   // NOTE: all hooks must run before any early return (Rules of Hooks).
   const all = drivers || [];

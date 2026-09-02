@@ -3,7 +3,6 @@ import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { PageTransition } from "../components/motion";
 import { AuthShell, HubCTA } from "../components/hub";
-import { RACE_SEASON } from "../config/season";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -28,15 +27,7 @@ export default function Login() {
   return (
     <PageTransition>
       <AuthShell
-        chip="Lights out"
-        title="Welcome"
-        ghost={RACE_SEASON}
-        blurb="Live timing · championship standings · the whole paddock"
-        facts={[
-          ["24", "Drivers"],
-          ["11", "Teams"],
-          ["24", "Rounds"],
-        ]}
+        stage={false}
         heading="Sign in"
         sub="Enter the paddock to follow the season."
         foot={

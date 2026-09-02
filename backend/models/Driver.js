@@ -2,6 +2,16 @@ const mongoose = require("mongoose");
 
 const driverSchema = new mongoose.Schema(
   {
+    // Jolpica/Ergast driverId ("max_verstappen") — the stable key the data
+    // sync upserts on (name spellings vary: "Hulkenberg" vs "Hülkenberg").
+    driverId: {
+      type: String,
+      index: { unique: true, sparse: true },
+    },
+    code: {
+      type: String, // three-letter abbreviation, e.g. VER
+      trim: true,
+    },
     firstName: {
       type: String,
       required: [true, "First name is required"],

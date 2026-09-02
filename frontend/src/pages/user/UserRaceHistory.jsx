@@ -10,6 +10,7 @@ import {
 } from "recharts";
 import API from "../../api";
 import { useFetch } from "../../hooks/useFetch";
+import { loaders } from "../../data/loaders";
 import {
   PageTransition,
   Reveal,
@@ -104,10 +105,7 @@ function SeasonCard({ season }) {
 }
 
 export default function UserRaceHistory() {
-  const { data, loading, error } = useFetch(
-    () => API.get("/race-history").then((r) => r.data),
-    [],
-  );
+  const { data, loading, error } = useFetch(loaders.history.fetch, [], { key: loaders.history.key });
   const [view, setView] = useState("seasons");
 
   const seasons = [...(data || [])].sort((a, b) => b.year - a.year);

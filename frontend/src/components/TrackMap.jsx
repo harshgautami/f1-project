@@ -13,6 +13,10 @@ const FALLBACK =
  * the actual curve and never cut corners — smooth and accurate at any speed.
  * A selected driver can be highlighted.
  */
+// getTotalLength on a real circuit outline costs hundreds of ms in some
+// engines — remember it per path for the session.
+const LEN_CACHE = new Map();
+
 export default function TrackMap({
   carsRef,
   snapshot = [],
@@ -27,7 +31,13 @@ export default function TrackMap({
   const d = path || FALLBACK;
 
   useLayoutEffect(() => {
-    if (pathRef.current) setLen(pathRef.current.getTotalLength());
+    if (!pathRef.current) return;
+    let l = LEN_CACHE.get(d);
+    if (!l) {
+      l = pathRef.current.getTotalLength();
+      LEN_CACHE.set(d, l);
+    }
+    setLen(l);
   }, [d]);
 
   // Point at a track fraction t in [0,1).

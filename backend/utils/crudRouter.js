@@ -18,6 +18,8 @@ const { auth, adminOnly } = require("../middleware/auth");
  * @param {Array}   [opts.validators]  express-validator chain for POST/PUT.
  * @param {boolean} [opts.getOne=true] Whether to mount GET /:id.
  * @param {number}  [opts.maxLimit=200] Cap on ?limit page size.
+ * @param {string[]} [opts.omitFromList] Heavy fields left out of the list
+ *   unless the client asks with ?include=field (GET /:id always has them).
  */
 function crudRouter(opts) {
   const {
@@ -30,6 +32,7 @@ function crudRouter(opts) {
     validators = [],
     getOne = true,
     maxLimit = 200,
+    omitFromList = [],
   } = opts;
 
   const router = express.Router();
@@ -50,7 +53,19 @@ function crudRouter(opts) {
         }
       }
 
-      let dbQuery = applyPopulate(model.find(query), populate).sort(sort);
+      const include = String(req.query.include || "")
+        .split(",")
+        .map((f) => f.trim())
+        .filter(Boolean);
+      const projection = omitFromList
+        .filter((f) => !include.includes(f))
+        .map((f) => `-${f}`)
+        .join(" ");
+
+      // .lean(): plain objects serialise several times faster than documents.
+      let dbQuery = applyPopulate(model.find(query, projection || undefined), populate)
+        .sort(sort)
+        .lean();
 
       const hasPaging =
         req.query.page !== undefined || req.query.limit !== undefined;

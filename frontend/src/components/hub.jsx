@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { AnimatedNumber, StaggerItem } from "./motion";
 import { IconChevronRight } from "./Icons";
 import F1Car from "./F1Car";
+import HubDropdown from "./HubDropdown";
 
 /* ---------------------------------------------------------------------------
    "HUB" — the F1.com-style design language, shared by every page.
@@ -13,12 +14,24 @@ import F1Car from "./F1Car";
    of index.css, so consistency is structural rather than copy-pasted.
    ------------------------------------------------------------------------- */
 
-export const fmtDate = (d) =>
-  new Date(d).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
+// One formatter, memoised per timestamp: toLocaleDateString builds a fresh
+// Intl formatter on every call, which showed up as ~100ms on list-heavy pages.
+const DATE_FMT = new Intl.DateTimeFormat("en-US", {
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+});
+const dateMemo = new Map();
+export const fmtDate = (d) => {
+  const t = new Date(d).getTime();
+  let s = dateMemo.get(t);
+  if (s === undefined) {
+    s = Number.isNaN(t) ? "" : DATE_FMT.format(t);
+    if (dateMemo.size > 500) dateMemo.clear();
+    dateMemo.set(t, s);
+  }
+  return s;
+};
 
 export const splitName = (full = "") => {
   const parts = String(full).trim().split(/\s+/);
@@ -368,20 +381,9 @@ export function HubBar({ children, className = "" }) {
   return <div className={`hub-bar ${className}`}>{children}</div>;
 }
 
-/** Skewed select styled like the rest of the chrome. */
-export function HubSelect({ value, onChange, options, label, width }) {
-  return (
-    <label className="hub-select" style={width ? { width } : undefined}>
-      {label && <span className="hub-select-label">{label}</span>}
-      <select value={value} onChange={onChange}>
-        {options.map((o) => (
-          <option key={String(o.value)} value={o.value}>
-            {o.label}
-          </option>
-        ))}
-      </select>
-    </label>
-  );
+/** Toolbar select in the hub chrome — a themed dropdown, not the browser's. */
+export function HubSelect(props) {
+  return <HubDropdown variant="bar" {...props} />;
 }
 
 /** Segmented control (drivers / constructors, seasons / insights). */
@@ -429,7 +431,8 @@ export function HubCard({ title, action, to, children, accent, className = "" })
 
 /**
  * Auth screens share the hero's grammar: kinetic title and ghost car on the
- * left, a glass form panel on the right.
+ * left, a glass form panel on the right. Pass `stage={false}` to drop the
+ * left-hand stage and centre the panel on its own.
  */
 export function AuthShell({
   chip,
@@ -441,7 +444,21 @@ export function AuthShell({
   sub,
   children,
   foot,
+  stage = true,
 }) {
+  const panel = (
+    <div className="auth-panel">
+      <div className="auth-panel-head">
+        <h2>{heading}</h2>
+        {sub && <p>{sub}</p>}
+      </div>
+      {children}
+      {foot && <div className="auth-foot">{foot}</div>}
+    </div>
+  );
+
+  if (!stage) return <div className="auth-split auth-solo">{panel}</div>;
+
   return (
     <div className="auth-split">
       <div className="auth-stage">
@@ -480,14 +497,7 @@ export function AuthShell({
         </div>
       </div>
 
-      <div className="auth-panel">
-        <div className="auth-panel-head">
-          <h2>{heading}</h2>
-          {sub && <p>{sub}</p>}
-        </div>
-        {children}
-        {foot && <div className="auth-foot">{foot}</div>}
-      </div>
+      {panel}
     </div>
   );
 }

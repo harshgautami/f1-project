@@ -1,6 +1,7 @@
 const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
+const compression = require("compression");
 
 const { env, validateEnv } = require("./config/env");
 const connectDB = require("./config/db");
@@ -17,6 +18,9 @@ connectDB();
 
 // Security headers
 app.use(helmet());
+
+// gzip JSON — a season of race results is ~120 kB raw, ~20 kB compressed.
+app.use(compression());
 
 // Restrict cross-origin access to the configured client origin(s).
 app.use(

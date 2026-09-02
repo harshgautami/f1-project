@@ -2,6 +2,7 @@ import React, { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import API from "../../api";
 import { useFetch } from "../../hooks/useFetch";
+import { loaders } from "../../data/loaders";
 import { PageTransition, Stagger, StaggerItem } from "../../components/motion";
 import { Loader, EmptyState } from "../../components/ui";
 import {
@@ -83,10 +84,9 @@ function RaceCard({ race, isNext, path }) {
 function UserRaces() {
   const [status, setStatus] = useState("all");
   const [season, setSeason] = useState(RACE_SEASON);
-  const { data, loading, error } = useFetch(
-    () => API.get(`/races?season=${season}`).then((res) => res.data),
-    [season],
-  );
+  const { data, loading, error } = useFetch(loaders.races(season).fetch, [season], {
+    key: loaders.races(season).key,
+  });
 
   const getCircuit = useCircuitLib();
 

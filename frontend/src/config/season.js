@@ -9,8 +9,9 @@ export const RACE_SEASON = 2026; // current race calendar
 export const STANDINGS_SEASON = 2026; // current championship
 export const CALENDAR_ROUNDS = 24;
 
-// Every season with data in the DB, newest first (2010–2026 synced).
-const FIRST_SEASON = 2010;
+// Every season with data in the DB, newest first: the backend keeps the last
+// 13 seasons plus the current one (HISTORY_YEARS in backend/scripts/sync.js).
+const FIRST_SEASON = 2013;
 const LATEST_SEASON = 2026;
 export const SEASONS = Array.from(
   { length: LATEST_SEASON - FIRST_SEASON + 1 },

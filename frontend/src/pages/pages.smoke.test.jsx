@@ -204,10 +204,11 @@ describe("every page renders in the hub design language", () => {
 
   // Several labels appear twice by design — once in the hero panel and once in
   // the stat strip below it — so these assert presence, not uniqueness.
-  it("login and register use the split auth shell", () => {
-    const { unmount } = mount(<Login />);
+  it("login is a lone centred panel; register keeps the split auth shell", () => {
+    const { container, unmount } = mount(<Login />);
     expect(screen.getAllByText("Sign in").length).toBeGreaterThanOrEqual(2);
-    expect(screen.getByText("Lights out")).toBeInTheDocument();
+    expect(container.querySelector(".auth-solo")).not.toBeNull();
+    expect(container.querySelector(".auth-stage")).toBeNull();
     unmount();
 
     mount(<Register />);

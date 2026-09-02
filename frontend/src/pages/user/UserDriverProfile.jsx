@@ -12,6 +12,7 @@ import {
 } from "recharts";
 import API from "../../api";
 import { useFetch } from "../../hooks/useFetch";
+import { loaders } from "../../data/loaders";
 import { PageTransition, Reveal } from "../../components/motion";
 import { Loader, EmptyState, Avatar } from "../../components/ui";
 import {
@@ -42,7 +43,7 @@ export default function UserDriverProfile() {
     data: driver,
     loading,
     error,
-  } = useFetch(() => API.get(`/drivers/${id}`).then((r) => r.data), [id]);
+  } = useFetch(loaders.driver(id).fetch, [id], { key: loaders.driver(id).key });
 
   if (loading) return <Loader label="Loading driver profile" />;
 

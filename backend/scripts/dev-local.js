@@ -3,8 +3,9 @@
 // The Atlas cluster referenced by MONGODB_URI in .env may be unreachable
 // (deleted/renamed cluster => DNS NXDOMAIN). This script stands up a real
 // MongoDB locally via mongodb-memory-server on a fixed port, persists its
-// data under backend/.local-mongo-data, seeds the default accounts on first
-// run, then starts the Express API against it.
+// data under backend/.local-mongo-data, and on first run seeds the default
+// accounts and pulls the real F1 data (last 13 seasons + current) from the
+// Jolpica API, then starts the Express API against it.
 //
 // Usage: npm run dev:local   (from backend/)
 
@@ -28,6 +29,9 @@ async function main() {
       dbName: DB_NAME,
       dbPath: DATA_DIR,
       storageEngine: "wiredTiger",
+      // WiredTiger replays a large journal on start (hundreds of MB after an
+      // unclean shutdown); the library default of 10s kills mongod mid-recovery.
+      launchTimeout: 120000,
     },
   });
 
@@ -44,7 +48,7 @@ async function main() {
   await mongoose.disconnect();
 
   if (userCount === 0) {
-    console.log("Empty database detected -> seeding sample data...");
+    console.log("Empty database detected -> creating accounts + syncing real F1 data (a few minutes)...");
     const seedPath = path.join(__dirname, "..", "seeds", "seed.js");
     const result = spawnSync(process.execPath, [seedPath], {
       stdio: "inherit",

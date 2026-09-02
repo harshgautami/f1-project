@@ -8,11 +8,15 @@
     "dev": "nodemon server.js",
     "dev:local": "node scripts/dev-local.js",
     "seed": "node seeds/seed.js",
+    "seed:users": "node seeds/seed.js --users-only",
     "sync": "node scripts/sync.js",
+    "sync:all": "node scripts/sync.js --all --prune",
+    "verify": "node scripts/verify.js",
     "test": "jest --runInBand --forceExit"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
+    "compression": "^1.8.1",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
     "express": "^4.18.2",

@@ -28,8 +28,10 @@ const env = {
   jwtSecret: process.env.JWT_SECRET,
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || "7d",
   // Comma-separated list of allowed browser origins for CORS.
+  // 3000 = Vite dev server, 4173 = `vite preview` (the production build locally).
   clientUrls: (
-    process.env.CLIENT_URL || "http://localhost:3000,https://f1-project-phi.vercel.app"
+    process.env.CLIENT_URL ||
+    "http://localhost:3000,http://localhost:4173,https://f1-project-phi.vercel.app"
   )
     .split(",")
     .map((url) => url.trim())
