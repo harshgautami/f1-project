@@ -20,6 +20,8 @@ module.exports = crudRouter({
     { param: "status", field: "status" },
   ],
   sort: { date: 1 },
+  // Powers the season picker on /races — see UserRaces.
+  seasons: true,
   // The per-race classification (22 rows × every round) is only needed by the
   // replay/dashboard — the calendar and admin list get it on ?include=results.
   omitFromList: ["results"],

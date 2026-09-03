@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeAll } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 
@@ -20,41 +20,10 @@ import UserRaceHistory from "./user/UserRaceHistory";
 import LiveRace from "./user/LiveRace";
 import AdminDashboard from "./admin/AdminDashboard";
 import AdminDrivers from "./admin/AdminDrivers";
+import AdminRaceHistory from "./admin/AdminRaceHistory";
 
-beforeAll(() => {
-  // jsdom ships none of these; framer-motion and recharts need them to exist.
-  window.matchMedia =
-    window.matchMedia ||
-    ((query) => ({
-      matches: false,
-      media: query,
-      onchange: null,
-      addEventListener() {},
-      removeEventListener() {},
-      addListener() {},
-      removeListener() {},
-      dispatchEvent: () => false,
-    }));
-  window.IntersectionObserver =
-    window.IntersectionObserver ||
-    class {
-      observe() {}
-      unobserve() {}
-      disconnect() {}
-    };
-  window.ResizeObserver =
-    window.ResizeObserver ||
-    class {
-      observe() {}
-      unobserve() {}
-      disconnect() {}
-    };
-  // jsdom has no SVG geometry engine; TrackMap samples the circuit with these.
-  if (globalThis.SVGElement && !SVGElement.prototype.getTotalLength) {
-    SVGElement.prototype.getTotalLength = () => 1000;
-    SVGElement.prototype.getPointAtLength = () => ({ x: 0, y: 0 });
-  }
-});
+// The jsdom polyfills these pages need (IntersectionObserver, matchMedia,
+// ResizeObserver, SVG geometry) now live in src/test/setup.js.
 
 vi.mock("../data/circuits", () => ({
   getCircuit: () => ({ d: "M100 100 L900 100 L900 500 L100 500 Z" }),
@@ -163,6 +132,7 @@ const STAFF = [
 
 const HISTORY = [
   {
+    _id: "h1",
     year: 2025,
     totalRaces: 24,
     champion: "Max Verstappen",
@@ -178,6 +148,8 @@ const HISTORY = [
 vi.mock("../api", () => ({
   default: {
     get: vi.fn((url) => {
+      // Season pickers ask each collection which seasons it holds.
+      if (url.endsWith("/seasons")) return Promise.resolve({ data: [2026, 2025] });
       if (url.startsWith("/drivers/")) return Promise.resolve({ data: DRIVER });
       if (url.startsWith("/drivers")) return Promise.resolve({ data: [DRIVER] });
       if (url.startsWith("/teams")) return Promise.resolve({ data: [TEAM] });
@@ -293,5 +265,24 @@ describe("every page renders in the hub design language", () => {
     expect(await screen.findByText("Records under management")).toBeInTheDocument();
     expect(screen.getByText("Quick actions")).toBeInTheDocument();
     expect(screen.getByText("Manage standings")).toBeInTheDocument();
+  });
+
+  // Every collection the user side displays needs a way in from the admin
+  // side; the archive was the one without one.
+  it("admin dashboard covers every managed collection, archive included", async () => {
+    mount(<AdminDashboard />);
+    await screen.findByText("Records under management");
+    for (const label of ["Teams", "Drivers", "Races", "Standings", "Staff", "Archive"])
+      expect(screen.getAllByText(label).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText("Manage archive")).toBeInTheDocument();
+  });
+
+  it("admin archive manages seasons and their per-team win split", async () => {
+    mount(<AdminRaceHistory />);
+    expect(await screen.findByText("Archive")).toBeInTheDocument();
+    expect(screen.getByText("Race History on file")).toBeInTheDocument();
+    expect(screen.getByText("Win split")).toBeInTheDocument();
+    expect(screen.getByText("Max Verstappen")).toBeInTheDocument();
+    expect(screen.getAllByText(/Add Season/i).length).toBeGreaterThanOrEqual(1);
   });
 });

@@ -23,6 +23,7 @@ export const ROUTE_LOADERS = {
   "/admin/races": () => import("./pages/admin/AdminRaces"),
   "/admin/standings": () => import("./pages/admin/AdminStandings"),
   "/admin/staff": () => import("./pages/admin/AdminStaff"),
+  "/admin/history": () => import("./pages/admin/AdminRaceHistory"),
 };
 
 const loaded = new Set();

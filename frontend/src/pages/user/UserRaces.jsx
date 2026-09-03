@@ -2,7 +2,9 @@ import React, { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import API from "../../api";
 import { useFetch } from "../../hooks/useFetch";
+import { useSeasons } from "../../hooks/useSeasons";
 import { loaders } from "../../data/loaders";
+import { withStatus } from "../../data/raceStatus";
 import { PageTransition, Stagger, StaggerItem } from "../../components/motion";
 import { Loader, EmptyState } from "../../components/ui";
 import {
@@ -83,22 +85,19 @@ function RaceCard({ race, isNext, path }) {
 
 function UserRaces() {
   const [status, setStatus] = useState("all");
-  const [season, setSeason] = useState(RACE_SEASON);
+  // Only offer seasons the database actually holds (see useSeasons).
+  const { season, seasons, setSeason } = useSeasons("/races", RACE_SEASON, SEASONS);
   const { data, loading, error } = useFetch(loaders.races(season).fetch, [season], {
     key: loaders.races(season).key,
   });
 
   const getCircuit = useCircuitLib();
 
-  const races = useMemo(
-    () => [...(data || [])].sort((a, b) => a.round - b.round),
-    [data],
-  );
-  const now = Date.now();
-  const nextRace =
-    races.find((r) => new Date(r.date).getTime() >= now) ||
-    races.find((r) => r.status === "upcoming") ||
-    null;
+  // withStatus replaces the stored status with the effective one, so a
+  // calendar that has not been re-synced since lights out still reads
+  // "completed" on every round that has been run.
+  const races = useMemo(() => withStatus(data), [data]);
+  const nextRace = races.find((r) => r.status === "upcoming") || null;
   const heroRace = nextRace || races[races.length - 1] || null;
   const heroPath = useCircuitPath(heroRace);
 
@@ -162,8 +161,8 @@ function UserRaces() {
         <HubSelect
           label="Season"
           value={season}
-          onChange={(e) => setSeason(Number(e.target.value))}
-          options={SEASONS.map((s) => ({ value: s, label: s }))}
+          onChange={(e) => setSeason(e.target.value)}
+          options={seasons.map((s) => ({ value: s, label: s }))}
         />
         <span className="hub-bar-count mono-num">
           {filtered.length}/{races.length}

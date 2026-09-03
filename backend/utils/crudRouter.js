@@ -17,6 +17,8 @@ const { auth, adminOnly } = require("../middleware/auth");
  * @param {Array|string} [opts.populateOne]  Populate spec for GET /:id (defaults to populate).
  * @param {Array}   [opts.validators]  express-validator chain for POST/PUT.
  * @param {boolean} [opts.getOne=true] Whether to mount GET /:id.
+ * @param {boolean} [opts.seasons=false] Mount GET /seasons — the distinct
+ *   `season` values actually stored, newest first.
  * @param {number}  [opts.maxLimit=200] Cap on ?limit page size.
  * @param {string[]} [opts.omitFromList] Heavy fields left out of the list
  *   unless the client asks with ?include=field (GET /:id always has them).
@@ -31,6 +33,7 @@ function crudRouter(opts) {
     populateOne = null,
     validators = [],
     getOne = true,
+    seasons = false,
     maxLimit = 200,
     omitFromList = [],
   } = opts;
@@ -83,6 +86,26 @@ function crudRouter(opts) {
       res.json(await dbQuery);
     }),
   );
+
+  // GET /seasons — the seasons this collection actually holds, newest
+  // first. A season picker built from this can never offer a year with
+  // nothing behind it, and a page whose default season is empty can fall
+  // back to the newest one that is not.
+  // Declared before GET /:id, or "seasons" gets read as an id.
+  if (seasons) {
+    router.get(
+      "/seasons",
+      asyncHandler(async (req, res) => {
+        const values = await model.distinct("season");
+        res.json(
+          values
+            .map(Number)
+            .filter(Number.isFinite)
+            .sort((a, b) => b - a),
+        );
+      }),
+    );
+  }
 
   // GET single by id
   if (getOne) {

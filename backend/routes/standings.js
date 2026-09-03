@@ -20,5 +20,7 @@ module.exports = crudRouter({
   ],
   sort: { position: 1 },
   getOne: false,
+  // Powers the season picker on /standings — see UserStandings.
+  seasons: true,
   validators,
 });

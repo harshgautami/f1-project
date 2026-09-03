@@ -36,6 +36,8 @@ vi.mock("../../data/circuits", () => ({
 vi.mock("../../api", () => ({
   default: {
     get: vi.fn((url) => {
+      // The loader asks which seasons each collection holds before querying.
+      if (url.endsWith("/seasons")) return Promise.resolve({ data: [2026] });
       if (url.startsWith("/races")) {
         return Promise.resolve({
           data: [

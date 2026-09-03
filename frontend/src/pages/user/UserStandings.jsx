@@ -1,6 +1,7 @@
 import { useState } from "react";
 import API from "../../api";
 import { useFetch } from "../../hooks/useFetch";
+import { useSeasons } from "../../hooks/useSeasons";
 import { loaders } from "../../data/loaders";
 import { PageTransition, Reveal, Stagger, StaggerItem } from "../../components/motion";
 import { Loader, EmptyState } from "../../components/ui";
@@ -81,7 +82,14 @@ function StandingRow({ row, maxPoints, isDriver, index }) {
 
 function UserStandings() {
   const [activeTab, setActiveTab] = useState("driver");
-  const [season, setSeason] = useState(STANDINGS_SEASON);
+  // Seasons come from the database rather than the static range: a deployment
+  // whose standings stop before the current year opens on its newest table
+  // instead of an empty one.
+  const { season, seasons, setSeason } = useSeasons(
+    "/standings",
+    STANDINGS_SEASON,
+    STANDINGS_SEASONS,
+  );
 
   const { data, loading, error } = useFetch(loaders.standings(season).fetch, [season], {
     key: loaders.standings(season).key,
@@ -150,8 +158,8 @@ function UserStandings() {
         <HubSelect
           label="Season"
           value={season}
-          onChange={(e) => setSeason(Number(e.target.value))}
-          options={STANDINGS_SEASONS.map((s) => ({ value: s, label: s }))}
+          onChange={(e) => setSeason(e.target.value)}
+          options={seasons.map((s) => ({ value: s, label: s }))}
         />
       </HubBar>
 

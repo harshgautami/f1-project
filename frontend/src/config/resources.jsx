@@ -3,7 +3,13 @@ import { RACE_SEASON, STANDINGS_SEASON, SEASONS, STANDINGS_SEASONS } from "./sea
 import { Avatar } from "../components/ui";
 
 /* Declarative definitions for every admin CRUD screen. Consumed by
-   <ResourceManager config={...} />. */
+   <ResourceManager config={...} />.
+
+   `invalidates` lists the user-facing cache keys (see data/loaders.js) that a
+   write to this resource makes stale — a driver edit changes the grid page,
+   the driver profile AND the live tracker's roster. ResourceManager drops
+   them after every create/update/delete so the two halves of the app can't
+   drift apart within a session. Prefixes, matched with startsWith. */
 
 const DEPARTMENTS = [
   "mechanical",
@@ -51,6 +57,8 @@ export const driversConfig = {
   plural: "Drivers",
   eyebrow: "Roster",
   refs: { teams: "/teams" },
+  // /drivers, /drivers/:id and the live tracker's roster.
+  invalidates: ["drivers", "driver:", "live:"],
   rowLabel: (r) => `${r.firstName} ${r.lastName}`,
   filters: [{ param: "team", label: "Teams", options: teamOptions }],
   columns: [
@@ -148,6 +156,9 @@ export const teamsConfig = {
   singular: "Team",
   plural: "Teams",
   eyebrow: "Constructors",
+  // Name and colour are populated onto driver and staff rows, so a team edit
+  // ripples through every page that shows either.
+  invalidates: ["teams", "drivers", "driver:", "staff", "live:"],
   columns: [
     {
       key: "color",
@@ -207,6 +218,8 @@ export const racesConfig = {
   singular: "Race",
   plural: "Races",
   eyebrow: "Calendar",
+  // Calendar page, the dashboard's next/last round, and the replay's session list.
+  invalidates: ["races:", "dashboard", "live:"],
   filters: [
     {
       param: "season",
@@ -289,6 +302,8 @@ export const standingsConfig = {
   singular: "Standing",
   plural: "Standings",
   eyebrow: "Championship",
+  // Standings page and the dashboard's championship panel.
+  invalidates: ["standings:", "dashboard"],
   rowLabel: (r) => r.name,
   filters: [
     {
@@ -372,6 +387,7 @@ export const staffConfig = {
   plural: "Staff",
   eyebrow: "Personnel",
   refs: { teams: "/teams" },
+  invalidates: ["staff"], // the Paddock page
   rowLabel: (r) => r.name,
   filters: [
     { param: "team", label: "Teams", options: teamOptions },
@@ -435,12 +451,40 @@ export const staffConfig = {
   },
 };
 
+/** The win split the user-facing Archive turns into per-team meters. */
+const TeamWinsCell = ({ wins = [] }) => {
+  if (!wins.length) return <span className="text-muted">—</span>;
+  const sorted = [...wins].sort((a, b) => b.wins - a.wins);
+  return (
+    <span className="admin-winsplit">
+      {sorted.slice(0, 4).map((tw) => (
+        <span key={tw.team} className="admin-winsplit-chip" title={tw.team}>
+          <i style={{ background: tw.color || "#888" }} />
+          {tw.wins}
+        </span>
+      ))}
+      {sorted.length > 4 && (
+        <span className="text-muted">+{sorted.length - 4}</span>
+      )}
+    </span>
+  );
+};
+
 export const raceHistoryConfig = {
   endpoint: "/race-history",
   singular: "Season",
   plural: "Race History",
   eyebrow: "Archive",
+  subtitle: (rows) => `${rows.length} seasons archived`,
+  invalidates: ["history"], // the Archive page
   rowLabel: (r) => String(r.year),
+  filters: [
+    {
+      param: "year",
+      label: "Years",
+      options: STANDINGS_SEASONS.map((y) => ({ value: y, label: String(y) })),
+    },
+  ],
   columns: [
     {
       key: "year",
@@ -455,6 +499,11 @@ export const raceHistoryConfig = {
     { key: "championTeam", label: "Team" },
     { key: "constructorChampion", label: "Constructors' Champion" },
     { key: "totalRaces", label: "Races", align: "center" },
+    {
+      key: "teamWins",
+      label: "Win split",
+      render: (r) => <TeamWinsCell wins={r.teamWins} />,
+    },
   ],
   fields: [
     { key: "year", label: "Year", type: "number", required: true, min: 1950, max: 2100, half: true },
@@ -462,6 +511,19 @@ export const raceHistoryConfig = {
     { key: "champion", label: "World Champion", type: "text", required: true, half: true },
     { key: "championTeam", label: "Champion's Team", type: "text", required: true, half: true },
     { key: "constructorChampion", label: "Constructors' Champion", type: "text", required: true },
+    {
+      key: "teamWins",
+      label: "Race wins by team",
+      type: "list",
+      addLabel: "Add team",
+      hint: "Drives the win-share meters and the team colours on the Archive page.",
+      itemFields: [
+        { key: "team", label: "Team", type: "text", placeholder: "McLaren" },
+        { key: "wins", label: "Wins", type: "number", min: 0 },
+        { key: "color", label: "Colour", type: "color" },
+      ],
+      newItem: { team: "", wins: 0, color: "#e10600" },
+    },
   ],
   emptyForm: {
     year: "",
@@ -469,5 +531,6 @@ export const raceHistoryConfig = {
     champion: "",
     championTeam: "",
     constructorChampion: "",
+    teamWins: [],
   },
 };

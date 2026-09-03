@@ -7,6 +7,7 @@ import API from "../api";
 import { RACE_SEASON } from "../config/season";
 import { prefetchRoute } from "../routes";
 import { prefetchRouteData } from "../data/loaders";
+import { lastRaceOf, nextRaceOf } from "../data/raceStatus";
 import { IconLogout, IconChevronRight } from "./Icons";
 
 // Hovering/focusing a rail link pulls in the page's chunk and its data, so
@@ -37,6 +38,7 @@ const ADMIN_LINKS = [
   ["/admin/races", "Races"],
   ["/admin/standings", "Standings"],
   ["/admin/staff", "Staff"],
+  ["/admin/history", "Archive"],
   ["/live", "Live Timing"],
 ];
 
@@ -173,13 +175,11 @@ export default function Navbar() {
     { key: user ? `races:${RACE_SEASON}` : undefined },
   );
   const { nextRace, lastRace } = useMemo(() => {
-    const list = Array.isArray(races)
-      ? [...races].sort((a, b) => new Date(a.date) - new Date(b.date))
-      : [];
-    const now = Date.now();
-    const next = list.find((r) => r.status === "upcoming" && new Date(r.date).getTime() > now);
-    const done = list.filter((r) => r.status === "completed" && r.winnerName);
-    return { nextRace: next, lastRace: done[done.length - 1] };
+    // Effective status (see data/raceStatus): the strip has to keep counting
+    // down to the right round even if the calendar has not been re-synced.
+    const list = Array.isArray(races) ? races : [];
+    const done = lastRaceOf(list.filter((r) => r.winnerName));
+    return { nextRace: nextRaceOf(list), lastRace: done };
   }, [races]);
 
   // Scroll: fold the bar past a threshold (with hysteresis so it doesn't

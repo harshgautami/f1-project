@@ -41,6 +41,7 @@ const AdminDrivers = lazy(ROUTE_LOADERS["/admin/drivers"]);
 const AdminRaces = lazy(ROUTE_LOADERS["/admin/races"]);
 const AdminStandings = lazy(ROUTE_LOADERS["/admin/standings"]);
 const AdminStaff = lazy(ROUTE_LOADERS["/admin/staff"]);
+const AdminRaceHistory = lazy(ROUTE_LOADERS["/admin/history"]);
 
 const ProtectedRoute = ({ children, adminOnly = false }) => {
   const { user, loading, launching } = useAuth();
@@ -93,6 +94,7 @@ const AppRoutes = () => {
           <Route path="/admin/races" element={protect(<AdminRaces />, true)} />
           <Route path="/admin/standings" element={protect(<AdminStandings />, true)} />
           <Route path="/admin/staff" element={protect(<AdminStaff />, true)} />
+          <Route path="/admin/history" element={protect(<AdminRaceHistory />, true)} />
 
           <Route path="/" element={<Navigate to="/login" replace />} />
           <Route path="*" element={<Navigate to="/login" replace />} />

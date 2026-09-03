@@ -27,14 +27,20 @@ import {
   IconHelmet,
   IconCalendar,
   IconUsers,
+  IconChart,
+  IconTrophy,
   IconChevronRight,
 } from "../../components/Icons";
 
+// One card per collection an admin can manage — the same six screens the rail
+// links to, so nothing the user side displays is missing a way in here.
 const CARDS = [
   { label: "Teams", key: "teams", link: "/admin/teams", accent: "#e10600", icon: <IconGrid /> },
   { label: "Drivers", key: "drivers", link: "/admin/drivers", accent: "#3671c6", icon: <IconHelmet /> },
   { label: "Races", key: "races", link: "/admin/races", accent: "#27f4d2", icon: <IconCalendar /> },
+  { label: "Standings", key: "standings", link: "/admin/standings", accent: "#d6ff3b", icon: <IconChart /> },
   { label: "Staff", key: "staff", link: "/admin/staff", accent: "#ff8000", icon: <IconUsers /> },
+  { label: "Archive", key: "history", link: "/admin/history", accent: "#b8b8c8", icon: <IconTrophy /> },
 ];
 
 const QUICK = [
@@ -43,13 +49,14 @@ const QUICK = [
   ["/admin/races", "Manage races"],
   ["/admin/standings", "Manage standings"],
   ["/admin/staff", "Manage staff"],
+  ["/admin/history", "Manage archive"],
 ];
 
 export default function AdminDashboard() {
   const { data, loading } = useFetch(loaders.adminCounts.fetch, [], { key: loaders.adminCounts.key });
 
   if (loading) return <Loader label="Loading control room" />;
-  const stats = data || { teams: 0, drivers: 0, races: 0, staff: 0 };
+  const stats = { teams: 0, drivers: 0, races: 0, standings: 0, staff: 0, history: 0, ...data };
   const total = CARDS.reduce((a, c) => a + (stats[c.key] || 0), 0);
   const ranked = [...CARDS].sort((a, b) => stats[b.key] - stats[a.key]).slice(0, 3);
 

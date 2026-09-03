@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import API from "../../api";
 import { useFetch } from "../../hooks/useFetch";
 import { loaders } from "../../data/loaders";
+import { nextRaceOf } from "../../data/raceStatus";
 import { PageTransition, Stagger, Marquee } from "../../components/motion";
 import { Loader, EmptyState } from "../../components/ui";
 import {
@@ -90,7 +91,7 @@ function Hero({ race, isReplay, top3, nextRace }) {
 
 /* ---- Featured editorial cards, generated from real season data ----------- */
 
-function Featured({ lastRace, standings, nextRace }) {
+function Featured({ lastRace, standings, nextRace, standingSeason }) {
   const winner = lastRace?.results?.[0];
   const leader = standings[0];
   const chaser = standings[1];
@@ -132,7 +133,7 @@ function Featured({ lastRace, standings, nextRace }) {
               )} points`
             : `${leader.name} tops the drivers' championship`
         }
-        meta={`Season ${STANDINGS_SEASON}`}
+        meta={`Season ${standingSeason}`}
       >
         <div className="hub-art-podium">
           {[podium[1], podium[0], podium[2]].filter(Boolean).map((s) => (
@@ -210,11 +211,11 @@ function Schedule({ races }) {
   );
 }
 
-function TitleFight({ standings }) {
+function TitleFight({ standings, season }) {
   const top = standings.slice(0, 5);
   const maxPts = top.length ? top[0].points : 0;
   return (
-    <HubCard title={`${STANDINGS_SEASON} Drivers' Title`} to="/standings">
+    <HubCard title={`${season} Drivers' Title`} to="/standings">
       <div className="hub-meters">
         {top.map((d, i) => (
           <div
@@ -247,6 +248,10 @@ export default function UserDashboard() {
 
   const races = (data?.races || []).slice().sort((a, b) => a.round - b.round);
   const standings = data?.standings || [];
+  // The loader falls back to the newest season each collection has data for,
+  // so the labels follow it rather than the calendar year.
+  const raceSeason = data?.raceSeason ?? RACE_SEASON;
+  const standingSeason = data?.standingSeason ?? STANDINGS_SEASON;
 
   if (!races.length) {
     return (
@@ -262,11 +267,9 @@ export default function UserDashboard() {
 
   const completed = races.filter((r) => r.results && r.results.length > 0);
   const lastRace = completed[completed.length - 1] || null;
-  const now = Date.now();
-  const nextRace =
-    races.find((r) => new Date(r.date).getTime() > now) ||
-    races.find((r) => r.status === "upcoming") ||
-    null;
+  // Effective status, so a calendar that has not been re-synced does not
+  // point at a "next race" that was run weeks ago.
+  const nextRace = nextRaceOf(races);
 
   const isReplay = !!lastRace;
   const heroRace = lastRace || nextRace || races[0];
@@ -295,12 +298,17 @@ export default function UserDashboard() {
     <PageTransition>
       <Hero race={heroRace} isReplay={isReplay} top3={top3} nextRace={nextRace} />
 
-      <Featured lastRace={lastRace} standings={standings} nextRace={nextRace} />
+      <Featured
+        lastRace={lastRace}
+        standings={standings}
+        nextRace={nextRace}
+        standingSeason={standingSeason}
+      />
 
       <div style={{ margin: "6px 0 28px" }}>
         <Marquee
           items={[
-            `${RACE_SEASON} World Championship`,
+            `${raceSeason} World Championship`,
             heroRace?.name || "Grand Prix",
             `${races.length} Rounds`,
             "Lights Out",
@@ -312,7 +320,7 @@ export default function UserDashboard() {
 
       <div className="grid-2">
         <Schedule races={upcoming} />
-        <TitleFight standings={standings} />
+        <TitleFight standings={standings} season={standingSeason} />
       </div>
     </PageTransition>
   );

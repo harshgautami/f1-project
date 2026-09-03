@@ -33,6 +33,9 @@ app.use(
       }
     },
     credentials: true,
+    // The paginated list routes report the unfiltered total here; without
+    // this the admin dashboard can't read it on a cross-origin deployment.
+    exposedHeaders: ["X-Total-Count"],
   }),
 );
 

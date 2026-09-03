@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from "react";
 import API from "../api";
-import { useFetch } from "../hooks/useFetch";
+import { useFetch, invalidate } from "../hooks/useFetch";
 import { Loader, EmptyState, Modal, Field } from "./ui";
 import { Reveal } from "./motion";
 import { HubHero, HubStat, HubCTA, HubBar, HubSelect, SectionHead } from "./hub";
@@ -16,9 +16,11 @@ import { IconPlus, IconEdit, IconTrash } from "./Icons";
      refs?: { key: "/url" },                       // extra data for selects
      columns: [{ key, label, align?, render?(row, refs) }],
      fields:  [{ key, label, type, required?, half?, placeholder?, hint?,
-                 min?, max?, step?, options?(refs), edit?(row), coerce? }],
+                 min?, max?, step?, options?(refs), edit?(row), coerce?,
+                 itemFields?, itemKey?, newItem?, addLabel? }], // "list" only
      emptyForm, toPayload?(form), fromRow?(row),
      filters?: [{ param, label, all?, options(refs) }],
+     invalidates?: ["drivers", "live:"],           // user-side cache prefixes
    }
    ------------------------------------------------------------------------- */
 
@@ -31,10 +33,39 @@ const buildQuery = (filters, values) => {
   return parts.length ? `?${parts.join("&")}` : "";
 };
 
+/* Repeatable rows are identified by one sub-field (`itemKey`, defaulting to
+   the first): an "Add" the operator never filled in carries the other fields'
+   defaults, so without this a stray blank row would reach the collection and
+   show up on the user-facing page as a nameless entry. */
+const listPayload = (field, value) => {
+  const idKey = field.itemKey || field.itemFields[0].key;
+  return (Array.isArray(value) ? value : [])
+    .filter((item) => {
+      const id = item[idKey];
+      return id !== "" && id !== undefined && id !== null;
+    })
+    .map((item) => {
+      const out = {};
+      for (const sf of field.itemFields) {
+        let v = item[sf.key];
+        if (v === "" || v === undefined || v === null) continue;
+        if (sf.type === "number") v = Number(v);
+        out[sf.key] = v;
+      }
+      return out;
+    });
+};
+
 const defaultPayload = (fields, form) => {
   const out = {};
   for (const f of fields) {
     let v = form[f.key];
+    // An emptied list is a real edit ("this season had no wins on record"),
+    // so it goes on the wire where a blank text input would be skipped.
+    if (f.type === "list") {
+      out[f.key] = listPayload(f, v);
+      continue;
+    }
     if (v === "" || v === undefined || v === null) continue;
     if (f.type === "number") v = Number(v);
     if (typeof f.coerce === "function") v = f.coerce(v, form);
@@ -48,6 +79,12 @@ const defaultForm = (fields, emptyForm, row) => {
   const out = { ...emptyForm };
   for (const f of fields) {
     if (typeof f.edit === "function") out[f.key] = f.edit(row);
+    else if (f.type === "list")
+      // Copy the subdocuments so editing the form never mutates the cached
+      // row, and drop Mongo's _id — the server rebuilds the array wholesale.
+      out[f.key] = (Array.isArray(row[f.key]) ? row[f.key] : []).map((item) =>
+        Object.fromEntries(f.itemFields.map((sf) => [sf.key, item[sf.key] ?? ""])),
+      );
     else if (f.type === "date" && row[f.key])
       out[f.key] = String(row[f.key]).slice(0, 10);
     else if (row[f.key] !== undefined && row[f.key] !== null)
@@ -56,7 +93,66 @@ const defaultForm = (fields, emptyForm, row) => {
   return out;
 };
 
+/* Repeatable subdocument rows (RaceHistory.teamWins is the one that needs it:
+   the user-facing Archive draws its win-share meters straight from that array,
+   so an admin who can't edit it can't fix what the Archive shows). */
+function ListEditor({ field, value, onChange }) {
+  const items = Array.isArray(value) ? value : [];
+  const write = (next) => onChange(field.key, next);
+  const patch = (i, key, v) =>
+    write(items.map((item, n) => (n === i ? { ...item, [key]: v } : item)));
+
+  return (
+    <div className="form-list">
+      {items.length === 0 && (
+        <p className="form-list-empty">Nothing added yet.</p>
+      )}
+      {items.map((item, i) => (
+        <div className="form-list-row" key={i}>
+          {field.itemFields.map((sf) => (
+            <label className="form-list-cell" key={sf.key} data-kind={sf.type}>
+              <span>{sf.label}</span>
+              <input
+                className="form-control"
+                type={sf.type === "number" ? "number" : sf.type === "color" ? "color" : "text"}
+                min={sf.min}
+                max={sf.max}
+                placeholder={sf.placeholder}
+                value={item[sf.key] ?? (sf.type === "color" ? "#e10600" : "")}
+                onChange={(e) => patch(i, sf.key, e.target.value)}
+              />
+            </label>
+          ))}
+          <button
+            type="button"
+            className="btn btn-sm btn-danger form-list-del"
+            onClick={() => write(items.filter((_, n) => n !== i))}
+            aria-label={`Remove row ${i + 1}`}
+          >
+            <IconTrash />
+          </button>
+        </div>
+      ))}
+      <button
+        type="button"
+        className="btn btn-sm btn-secondary form-list-add"
+        onClick={() => write([...items, { ...(field.newItem || {}) }])}
+      >
+        <IconPlus /> {field.addLabel || "Add row"}
+      </button>
+    </div>
+  );
+}
+
 function FormField({ field, value, onChange, refs }) {
+  if (field.type === "list") {
+    return (
+      <Field label={field.label} hint={field.hint} required={field.required}>
+        <ListEditor field={field} value={value} onChange={onChange} />
+      </Field>
+    );
+  }
+
   const common = {
     className: "form-control",
     value: value ?? "",
@@ -154,6 +250,16 @@ export default function ResourceManager({ config }) {
   const rows = list.data || [];
   const setField = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
 
+  /* A write here changes what the *user-facing* pages show, but those pages
+     read their own stale-while-revalidate entries (`drivers`, `standings:2026`,
+     …) — and the admin's other screens read `admin:…` ones. Nothing linked the
+     two, so an edit stayed invisible until a full reload. Dropping both sets
+     means the next mount of any affected page refetches. */
+  const syncCaches = () => {
+    invalidate("admin:"); // sibling admin lists, the dashboard counts, refs
+    for (const prefix of config.invalidates || []) invalidate(prefix);
+  };
+
   const openCreate = () => {
     setEditing(null);
     setForm(defaultForm(config.fields, config.emptyForm, null));
@@ -182,6 +288,7 @@ export default function ResourceManager({ config }) {
       if (editing) await API.put(`${config.endpoint}/${editing}`, payload);
       else await API.post(config.endpoint, payload);
       setModalOpen(false);
+      syncCaches();
       list.refetch();
     } catch (err) {
       setError(
@@ -199,6 +306,7 @@ export default function ResourceManager({ config }) {
       return;
     try {
       await API.delete(`${config.endpoint}/${row._id}`);
+      syncCaches();
       list.refetch();
     } catch {
       window.alert("Delete failed");
@@ -213,7 +321,11 @@ export default function ResourceManager({ config }) {
     [rows, config],
   );
 
-  if (list.loading || refsFetch.loading) return <Loader label={`Loading ${config.plural.toLowerCase()}`} />;
+  // Only the *first* load gets a spinner. A post-save refetch (whose cache
+  // entry syncCaches just dropped) keeps the table on screen and updates in
+  // place, rather than flashing the whole page back to a loader.
+  if ((list.loading && !list.data) || (refsFetch.loading && !refsFetch.data))
+    return <Loader label={`Loading ${config.plural.toLowerCase()}`} />;
 
   return (
     <div>
