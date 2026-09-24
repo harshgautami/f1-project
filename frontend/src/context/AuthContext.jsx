@@ -82,7 +82,7 @@ export const AuthProvider = ({ children }) => {
 
   const isAdmin = () => user && user.role === "admin";
 
-  // Stable identity so the RaceLaunch cinematic's timers aren't reset by
+  // Stable identity so the chequered-wipe cinematic's timers aren't reset by
   // unrelated re-renders (e.g. the home page loading behind the overlay).
   const endLaunch = useCallback(() => setLaunching(false), []);
 

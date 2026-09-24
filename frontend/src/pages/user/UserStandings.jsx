@@ -71,8 +71,8 @@ function StandingRow({ row, maxPoints, isDriver, index }) {
             style={{ width: `${maxPoints ? (row.points / maxPoints) * 100 : 0}%` }}
           />
         </span>
-        <span className="hub-standing-wins mono-num" title="Race wins">
-          {row.wins ?? 0}W
+        <span className="hub-standing-wins mono-num" title="Race wins · podiums">
+          {row.wins ?? 0}W · {row.podiums ?? 0}P
         </span>
         <span className="hub-standing-pts mono-num">{row.points}</span>
       </div>

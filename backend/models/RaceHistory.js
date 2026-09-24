@@ -22,6 +22,13 @@ const raceHistorySchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    // The champion's season, straight from the final championship tables.
+    championPoints: Number,
+    championWins: Number,
+    championPodiums: Number,
+    constructorPoints: Number,
+    runnerUp: String,
+    margin: Number, // points between champion and runner-up
     teamWins: [
       {
         team: String,

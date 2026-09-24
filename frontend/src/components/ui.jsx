@@ -107,6 +107,16 @@ export function SectionTitle({ children }) {
 }
 
 /** Image with a graceful initials fallback (used until real image URLs exist). */
+/* formula1.com driver photos are full-body portraits served by Cloudinary;
+   in an avatar that shrinks to a sliver of race suit. Ask the CDN for a
+   face-centred square instead (2x the rendered size for sharp HiDPI). */
+const F1_PORTRAIT = /(media\.formula1\.com\/image\/upload\/)c_lfill,w_\d+(\/)/;
+export function faceCrop(src, size) {
+  if (!src || !F1_PORTRAIT.test(src)) return src;
+  const px = Math.ceil((size * 2) / 40) * 40; // a few cached sizes, not one per px
+  return src.replace(F1_PORTRAIT, `$1c_thumb,g_face,w_${px},h_${px}$2`);
+}
+
 export function Avatar({ src, name = "", color = "#e10600", size = 44, rounded = "50%" }) {
   const [failed, setFailed] = useState(false);
   const initials =
@@ -121,7 +131,7 @@ export function Avatar({ src, name = "", color = "#e10600", size = 44, rounded =
   if (src && !failed) {
     return (
       <img
-        src={src}
+        src={faceCrop(src, size)}
         alt={name}
         onError={() => setFailed(true)}
         style={{

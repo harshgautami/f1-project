@@ -41,6 +41,10 @@ const standingSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    podiums: {
+      type: Number,
+      default: 0,
+    },
   },
   { timestamps: true },
 );

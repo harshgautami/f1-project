@@ -1,46 +1,17 @@
-import { useState } from "react";
-import {
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-  Cell,
-  XAxis,
-  YAxis,
-  Tooltip,
-} from "recharts";
-import API from "../../api";
 import { useFetch } from "../../hooks/useFetch";
 import { loaders } from "../../data/loaders";
-import {
-  PageTransition,
-  Reveal,
-  Stagger,
-  StaggerItem,
-} from "../../components/motion";
+import { PageTransition, Stagger, StaggerItem } from "../../components/motion";
 import { Loader, EmptyState } from "../../components/ui";
 import {
   HubHero,
   HubStat,
   HubCTA,
-  HubBar,
-  HubTabs,
-  HubCard,
   HubStrip,
   RankList,
   RankRow,
   SectionHead,
   splitName,
-  driverCode,
 } from "../../components/hub";
-
-const CHART_TOOLTIP = {
-  background: "#0d0d14",
-  border: "1px solid #38384c",
-  borderRadius: 10,
-  color: "#f4f4f8",
-  fontFamily: "Inter, sans-serif",
-  fontSize: 12,
-};
 
 /** Season card: ghost year, both champions, and the team win split. */
 function SeasonCard({ season }) {
@@ -68,6 +39,17 @@ function SeasonCard({ season }) {
             {first} <b>{last}</b>
           </h3>
           <span className="hub-season-team">{season.championTeam}</span>
+          {season.championPoints != null && (
+            <span className="hub-season-stats mono-num">
+              {season.championPoints} pts · {season.championWins ?? 0} wins ·{" "}
+              {season.championPodiums ?? 0} podiums
+              {season.runnerUp && (
+                <em>
+                  +{season.margin} over {season.runnerUp}
+                </em>
+              )}
+            </span>
+          )}
         </div>
 
         <div className="hub-season-champ">
@@ -106,7 +88,6 @@ function SeasonCard({ season }) {
 
 export default function UserRaceHistory() {
   const { data, loading, error } = useFetch(loaders.history.fetch, [], { key: loaders.history.key });
-  const [view, setView] = useState("seasons");
 
   const seasons = [...(data || [])].sort((a, b) => b.year - a.year);
 
@@ -135,7 +116,6 @@ export default function UserRaceHistory() {
     );
 
   const latest = seasons[0];
-  const latestTeamWins = [...(latest.teamWins || [])].sort((a, b) => b.wins - a.wins);
 
   // Aggregate: championship titles by driver across every archived season.
   const titlesByDriver = {};
@@ -194,107 +174,12 @@ export default function UserRaceHistory() {
         ]}
       />
 
-      <HubBar>
-        <HubTabs
-          tabs={[
-            { value: "seasons", label: "Seasons" },
-            { value: "insights", label: "Insights" },
-          ]}
-          active={view}
-          onChange={setView}
-        />
-      </HubBar>
-
-      {view === "insights" && (
-        <div className="grid-2">
-          <Reveal>
-            <HubCard title="World titles by driver">
-              <ResponsiveContainer width="100%" height={280}>
-                <BarChart
-                  data={driverTitles.map((d) => ({ ...d, code: driverCode(d.name) }))}
-                  margin={{ top: 8, right: 8, left: -20, bottom: 0 }}
-                >
-                  <XAxis
-                    dataKey="code"
-                    stroke="#6b6b82"
-                    tickLine={false}
-                    axisLine={{ stroke: "#262636" }}
-                    tick={{ fontSize: 11, fontWeight: 700 }}
-                    interval={0}
-                  />
-                  <YAxis
-                    stroke="#6b6b82"
-                    tickLine={false}
-                    axisLine={false}
-                    tick={{ fontSize: 11 }}
-                    allowDecimals={false}
-                  />
-                  <Tooltip
-                    cursor={{ fill: "rgba(225,6,0,0.07)" }}
-                    contentStyle={CHART_TOOLTIP}
-                    labelFormatter={(_, p) => p?.[0]?.payload?.name || ""}
-                  />
-                  <Bar dataKey="titles" radius={[4, 4, 0, 0]} maxBarSize={48}>
-                    {driverTitles.map((d) => (
-                      <Cell key={d.name} fill={d.color || "#e10600"} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </HubCard>
-          </Reveal>
-
-          <Reveal delay={0.08}>
-            <HubCard title={`Race wins by team — ${latest.year}`}>
-              <ResponsiveContainer width="100%" height={280}>
-                <BarChart
-                  data={latestTeamWins}
-                  margin={{ top: 8, right: 8, left: -20, bottom: 0 }}
-                >
-                  <XAxis
-                    dataKey="team"
-                    stroke="#6b6b82"
-                    tickLine={false}
-                    axisLine={{ stroke: "#262636" }}
-                    tick={{ fontSize: 10 }}
-                    interval={0}
-                    angle={-20}
-                    textAnchor="end"
-                    height={56}
-                  />
-                  <YAxis
-                    stroke="#6b6b82"
-                    tickLine={false}
-                    axisLine={false}
-                    tick={{ fontSize: 11 }}
-                    allowDecimals={false}
-                  />
-                  <Tooltip
-                    cursor={{ fill: "rgba(39,244,210,0.07)" }}
-                    contentStyle={CHART_TOOLTIP}
-                  />
-                  <Bar dataKey="wins" radius={[4, 4, 0, 0]} maxBarSize={48}>
-                    {latestTeamWins.map((tw) => (
-                      <Cell key={tw.team} fill={tw.color || "#27f4d2"} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </HubCard>
-          </Reveal>
-        </div>
-      )}
-
-      {view === "seasons" && (
-        <>
-          <SectionHead label="Season archive" />
-          <Stagger className="hub-card-grid">
-            {seasons.map((s) => (
-              <SeasonCard key={s.year} season={s} />
-            ))}
-          </Stagger>
-        </>
-      )}
+      <SectionHead label="Season archive" />
+      <Stagger className="hub-card-grid">
+        {seasons.map((s) => (
+          <SeasonCard key={s.year} season={s} />
+        ))}
+      </Stagger>
     </PageTransition>
   );
 }

@@ -2220,6 +2220,41 @@ textarea.form-control {
   background: #030305;
 }
 
+/* ===== POST-LOGIN CHEQUERED FLAG WIPE (see ChequeredWipe.jsx) ===== */
+.chequered-wipe {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  cursor: pointer;
+  animation: chequered-wipe-in 0.18s ease-out;
+}
+.chequered-wipe canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.chequered-wipe-skip {
+  position: absolute;
+  z-index: 1;
+  right: 24px;
+  bottom: 20px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: #fff;
+  mix-blend-mode: difference;
+  opacity: 0.55;
+  pointer-events: none;
+}
+@keyframes chequered-wipe-in {
+  from {
+    opacity: 0;
+  }
+}
+
 /* ===== POST-LOGIN RACE LAUNCH (broadcast-cut cinematic) ===== */
 .race-launch {
   position: fixed;
@@ -4655,6 +4690,21 @@ button.hub-cta {
   font-size: 12px;
   font-weight: 600;
   color: var(--team-accent);
+}
+
+.hub-season-stats {
+  display: block;
+  margin-top: 6px;
+  font-size: 11px;
+  letter-spacing: 0.4px;
+  color: var(--text-secondary);
+}
+
+.hub-season-stats em {
+  display: block;
+  margin-top: 2px;
+  font-style: normal;
+  color: var(--text-muted);
 }
 
 /* ---- Staff card + team groups -------------------------------------------- */

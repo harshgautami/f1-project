@@ -23,7 +23,8 @@ const TEAM_COLORS = {
   cadillac: "#C69A5A",
 };
 
-// Team facts (2026 grid) by constructorId. firstEntry, worldChampionships and
+// Team facts (2026 grid) by constructorId. `mediaSlug` is the team's folder on
+// media.formula1.com (driver photos + logos). firstEntry, worldChampionships and
 // the team principal are NOT here: the first two are computed from the API and
 // the principal is read from the management entry in TEAM_STAFF.
 const TEAM_META = {
@@ -31,56 +32,78 @@ const TEAM_META = {
     fullName: "Oracle Red Bull Racing",
     base: "Milton Keynes, United Kingdom",
     powerUnit: "Red Bull Ford",
+    chassis: "RB22",
+    mediaSlug: "redbullracing",
   },
   ferrari: {
     fullName: "Scuderia Ferrari HP",
     base: "Maranello, Italy",
     powerUnit: "Ferrari",
+    chassis: "SF-26",
+    mediaSlug: "ferrari",
   },
   mercedes: {
     fullName: "Mercedes-AMG PETRONAS F1 Team",
     base: "Brackley, United Kingdom",
     powerUnit: "Mercedes",
+    chassis: "W17",
+    mediaSlug: "mercedes",
   },
   mclaren: {
     fullName: "McLaren Formula 1 Team",
     base: "Woking, United Kingdom",
     powerUnit: "Mercedes",
+    chassis: "MCL40",
+    mediaSlug: "mclaren",
   },
   aston_martin: {
     fullName: "Aston Martin Aramco F1 Team",
     base: "Silverstone, United Kingdom",
     powerUnit: "Honda",
+    chassis: "AMR26",
+    mediaSlug: "astonmartin",
   },
   alpine: {
     fullName: "BWT Alpine F1 Team",
     base: "Enstone, United Kingdom",
     powerUnit: "Mercedes",
+    chassis: "A526",
+    mediaSlug: "alpine",
   },
   williams: {
     fullName: "Atlassian Williams Racing",
     base: "Grove, United Kingdom",
     powerUnit: "Mercedes",
+    chassis: "FW48",
+    mediaSlug: "williams",
   },
   rb: {
     fullName: "Visa Cash App Racing Bulls F1 Team",
     base: "Faenza, Italy",
     powerUnit: "Red Bull Ford",
+    chassis: "VCARB 03",
+    mediaSlug: "racingbulls",
   },
   haas: {
     fullName: "MoneyGram Haas F1 Team",
     base: "Kannapolis, United States",
     powerUnit: "Ferrari",
+    chassis: "VF-26",
+    mediaSlug: "haasf1team",
   },
   audi: {
     fullName: "Audi Revolut F1 Team",
     base: "Hinwil, Switzerland",
     powerUnit: "Audi",
+    chassis: "R26",
+    mediaSlug: "audi",
   },
   cadillac: {
     fullName: "Cadillac Formula 1 Team",
     base: "Fishers, Indiana, United States",
     powerUnit: "Ferrari",
+    chassis: "MAC-26",
+    mediaSlug: "cadillac",
   },
 };
 
@@ -107,14 +130,14 @@ const TEAM_STAFF = {
       "role": "Chief Performance and Design Engineer",
       "department": "mechanical",
       "nationality": "British",
-      "experience": ""
+      "experience": "Ex-Toro Rosso deputy TD; back at Red Bull since 2017"
     },
     {
       "name": "Andrea Landi",
       "role": "Head of Performance",
       "department": "aerodynamics",
       "nationality": "Italian",
-      "experience": "Ex-Ferrari Deputy Head of Vehicle Performance; joined July 2026"
+      "experience": "Ex-Racing Bulls deputy TD; joined Red Bull July 2026"
     },
     {
       "name": "Gianpiero Lambiase",
@@ -144,7 +167,7 @@ const TEAM_STAFF = {
       "role": "Deputy Team Principal",
       "department": "management",
       "nationality": "Belgian",
-      "experience": ""
+      "experience": "Ex-F1 driver, 3 Formula E wins; Ferrari DTP since Oct 2024"
     },
     {
       "name": "Loic Serra",
@@ -158,14 +181,14 @@ const TEAM_STAFF = {
       "role": "Head of Aerodynamics",
       "department": "aerodynamics",
       "nationality": "Italian",
-      "experience": ""
+      "experience": "At Ferrari since 2007; head of aero since 2024"
     },
     {
       "name": "Fabio Montecchi",
       "role": "Chief Project Engineer",
       "department": "mechanical",
       "nationality": "Italian",
-      "experience": ""
+      "experience": "At Ferrari since 2003; ex-deputy chief designer"
     },
     {
       "name": "Bryan Bozzi",
@@ -195,7 +218,7 @@ const TEAM_STAFF = {
       "role": "Trackside Engineering Director",
       "department": "strategy",
       "nationality": "British",
-      "experience": ""
+      "experience": "Button's race engineer for his 2009 title"
     },
     {
       "name": "Peter Bonnington",
@@ -216,7 +239,7 @@ const TEAM_STAFF = {
       "role": "Chief Mechanic",
       "department": "pitstop",
       "nationality": "British",
-      "experience": ""
+      "experience": "Also heads race-team garage operations"
     }
   ],
   "McLaren": [
@@ -236,10 +259,10 @@ const TEAM_STAFF = {
     },
     {
       "name": "Neil Houldey",
-      "role": "Technical Director, Engineering",
+      "role": "Technical Director, Applied Engineering",
       "department": "mechanical",
       "nationality": "British",
-      "experience": ""
+      "experience": "McLaren engineer since 2006; ex-Lola"
     },
     {
       "name": "Rob Marshall",
@@ -261,13 +284,6 @@ const TEAM_STAFF = {
       "department": "strategy",
       "nationality": "British",
       "experience": "Long-serving McLaren race engineer; 2008 Olympic rowing silver medallist"
-    },
-    {
-      "name": "Piers Thynne",
-      "role": "Chief Operating Officer",
-      "department": "management",
-      "nationality": "British",
-      "experience": ""
     }
   ],
   "Aston Martin": [
@@ -294,24 +310,24 @@ const TEAM_STAFF = {
     },
     {
       "name": "Chris Cronin",
-      "role": "Senior Race Engineer (Fernando Alonso)",
+      "role": "Senior Race Engineer (Fernando Alonso) / Chief Engineer, Trackside",
       "department": "strategy",
       "nationality": "British",
-      "experience": ""
+      "experience": "Ex-Vettel race engineer"
     },
     {
       "name": "Gary Gannon",
-      "role": "Race Engineer (Lance Stroll)",
+      "role": "Senior Race Engineer (Lance Stroll)",
       "department": "strategy",
-      "nationality": "British",
-      "experience": ""
+      "nationality": "American",
+      "experience": "Ex-Haas and Virgin engineer; started in CART"
     },
     {
       "name": "Lawrence Stroll",
       "role": "Executive Chairman / Owner",
       "department": "management",
       "nationality": "Canadian",
-      "experience": ""
+      "experience": "Aston Martin Lagonda executive chairman since 2020"
     }
   ],
   "Alpine F1 Team": [
@@ -341,21 +357,21 @@ const TEAM_STAFF = {
       "role": "Technical Director, Aerodynamics",
       "department": "aerodynamics",
       "nationality": "British",
-      "experience": ""
+      "experience": "Ex-Williams aero director; at Benetton/Renault from 2000"
     },
     {
       "name": "Josh Peckett",
       "role": "Race Engineer (Pierre Gasly)",
       "department": "strategy",
       "nationality": "British",
-      "experience": ""
+      "experience": "Engineered Ocon's 2021 Hungary win; Gasly's since 2025"
     },
     {
       "name": "Stuart Barlow",
       "role": "Race Engineer (Franco Colapinto)",
       "department": "strategy",
       "nationality": "British",
-      "experience": ""
+      "experience": "Le Mans winner with Audi Joest; at Enstone since 2019"
     }
   ],
   "Williams": [
@@ -399,14 +415,21 @@ const TEAM_STAFF = {
       "role": "Race Engineer (Carlos Sainz)",
       "department": "strategy",
       "nationality": "French",
-      "experience": ""
+      "experience": "At Williams since 2020; Sainz's engineer since 2025"
     },
     {
       "name": "James Urwin",
       "role": "Race Engineer (Alex Albon)",
       "department": "strategy",
       "nationality": "British",
-      "experience": ""
+      "experience": "At Williams since 2014; Albon's engineer since 2022"
+    },
+    {
+      "name": "Piers Thynne",
+      "role": "Chief Optimisation and Planning Officer",
+      "department": "management",
+      "nationality": "British",
+      "experience": "Ex-McLaren COO (2023–26); joined Williams 2026"
     }
   ],
   "RB F1 Team": [
@@ -425,25 +448,18 @@ const TEAM_STAFF = {
       "experience": "Ex-McLaren and FIA technical director"
     },
     {
-      "name": "Guillaume Cattelani",
-      "role": "Deputy Technical Director (Performance)",
+      "name": "Dan Fallows",
+      "role": "Technical Director",
       "department": "mechanical",
-      "nationality": "French",
-      "experience": ""
-    },
-    {
-      "name": "Andrea Landi",
-      "role": "Deputy Technical Director",
-      "department": "mechanical",
-      "nationality": "Italian",
-      "experience": ""
+      "nationality": "British",
+      "experience": "Ex-Aston Martin TD; ex-Red Bull head of aero"
     },
     {
       "name": "Alexandre Iliopoulos",
       "role": "Race Engineer (Liam Lawson)",
       "department": "strategy",
-      "nationality": "",
-      "experience": ""
+      "nationality": "Greek",
+      "experience": "At Faenza since 2016; ex-Michelin engineer"
     }
   ],
   "Haas F1 Team": [
@@ -459,14 +475,14 @@ const TEAM_STAFF = {
       "role": "Technical Director",
       "department": "mechanical",
       "nationality": "Italian",
-      "experience": ""
+      "experience": "Ex-Minardi, Red Bull, McLaren, Ferrari; Haas TD since 2024"
     },
     {
       "name": "Mark Lowe",
       "role": "Sporting Director",
       "department": "management",
       "nationality": "British",
-      "experience": ""
+      "experience": "Haas sporting director since Jan 2025"
     },
     {
       "name": "Laura Mueller",
@@ -480,7 +496,7 @@ const TEAM_STAFF = {
       "role": "Race Engineer (Oliver Bearman)",
       "department": "strategy",
       "nationality": "British",
-      "experience": ""
+      "experience": "Ex-Brawn, Mercedes, Toro Rosso, Williams"
     }
   ],
   "Audi": [
@@ -510,14 +526,14 @@ const TEAM_STAFF = {
       "role": "Chief Technical Officer, Power Unit",
       "department": "mechanical",
       "nationality": "German",
-      "experience": ""
+      "experience": "Audi Sport engine engineer turned F1 PU chief"
     },
     {
       "name": "Alessandro Cinelli",
       "role": "Head of Aerodynamics",
       "department": "aerodynamics",
       "nationality": "Italian",
-      "experience": ""
+      "experience": "17 years at Ferrari; at Sauber since 2019"
     },
     {
       "name": "Giampaolo Dall'Ara",
@@ -538,7 +554,7 @@ const TEAM_STAFF = {
       "role": "Performance Director",
       "department": "strategy",
       "nationality": "Italian",
-      "experience": ""
+      "experience": "Ex-McLaren director of vehicle performance"
     }
   ],
   "Cadillac F1 Team": [
@@ -586,13 +602,62 @@ const TEAM_STAFF = {
     },
     {
       "name": "Naoki Tokunaga",
-      "role": "Technical Advisor",
+      "role": "Senior Strategic Advisor",
       "department": "management",
       "nationality": "Japanese",
-      "experience": ""
+      "experience": "Ex-Renault F1 engine technical director"
     }
   ]
 };
+
+// Official lap length (km) per Jolpica circuitId. Where a layout changed inside
+// the history window the value is a list of [firstSeason, km] steps.
+const CIRCUIT_KM = {
+  albert_park: [[0, 5.303], [2022, 5.278]],
+  americas: 5.513,
+  bahrain: 5.412,
+  baku: 6.003,
+  buddh: 5.125,
+  catalunya: [[0, 4.655], [2021, 4.675], [2023, 4.657]],
+  hockenheimring: 4.574,
+  hungaroring: 4.381,
+  imola: 4.909,
+  interlagos: 4.309,
+  istanbul: 5.338,
+  jeddah: 6.174,
+  losail: [[0, 5.38], [2023, 5.419]],
+  madring: 5.416,
+  marina_bay: [[0, 5.065], [2018, 5.063], [2023, 4.94]],
+  miami: 5.412,
+  monaco: 3.337,
+  monza: 5.793,
+  mugello: 5.245,
+  nurburgring: 5.148,
+  portimao: 4.653,
+  red_bull_ring: 4.318,
+  ricard: 5.842,
+  rodriguez: 4.304,
+  sepang: 5.543,
+  shanghai: 5.451,
+  silverstone: 5.891,
+  sochi: 5.848,
+  spa: 7.004,
+  suzuka: 5.807,
+  valencia: 5.419,
+  vegas: 6.201,
+  villeneuve: 4.361,
+  yas_marina: [[0, 5.554], [2021, 5.281]],
+  yeongam: 5.615,
+  zandvoort: 4.259,
+};
+
+/** "5.278 km" for a circuit in a given season ("" when unknown). */
+function circuitLengthFor(circuitId, season) {
+  const v = CIRCUIT_KM[circuitId];
+  if (v == null) return "";
+  const km = Array.isArray(v) ? v.filter(([from]) => season >= from).at(-1)[1] : v;
+  return `${km.toFixed(3)} km`;
+}
 
 /** Team principal for a constructor name, read from its management staff. */
 function teamPrincipalFor(constructorName) {
@@ -602,4 +667,4 @@ function teamPrincipalFor(constructorName) {
   return tp ? tp.name : "";
 }
 
-module.exports = { TEAM_COLORS, TEAM_META, TEAM_STAFF, teamPrincipalFor };
+module.exports = { TEAM_COLORS, TEAM_META, TEAM_STAFF, CIRCUIT_KM, teamPrincipalFor, circuitLengthFor };

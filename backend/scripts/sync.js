@@ -13,8 +13,11 @@
      · driver careers (every start they ever made → per-season
        wins/podiums/points/position, titles, career totals)    → Driver
      · constructor titles + first entry year                    → Team
-   Hand-maintained (see rosterMeta.js): team colours, base, power unit, and the
-   team-staff roster — none of which any results API provides.
+     · podium counts per standings row, champion stats per season,
+       driver biographies                                       → derived
+   Hand-maintained (see rosterMeta.js): team colours, base, power unit,
+   chassis, circuit lengths, and the team-staff roster — none of which any
+   results API provides. Driver photos and team logos are formula1.com media.
 
    Everything is UPSERTED on stable Jolpica ids (constructorId / driverId /
    season+round / season+type+position), so re-running is safe and idempotent.
@@ -45,12 +48,18 @@ const Race = require("../models/Race");
 const Standing = require("../models/Standing");
 const TeamStaff = require("../models/TeamStaff");
 const RaceHistory = require("../models/RaceHistory");
-const { TEAM_COLORS, TEAM_META, TEAM_STAFF, teamPrincipalFor } = require("./rosterMeta");
+const {
+  TEAM_COLORS,
+  TEAM_META,
+  TEAM_STAFF,
+  teamPrincipalFor,
+  circuitLengthFor,
+} = require("./rosterMeta");
 
 const API = "https://api.jolpi.ca/ergast/f1";
 const CURRENT_YEAR = new Date().getFullYear();
 /** Seasons of history kept alongside the current one. */
-const HISTORY_YEARS = 13;
+const HISTORY_YEARS = 15;
 const SEASON_FROM = CURRENT_YEAR - HISTORY_YEARS;
 /** First season with a constructors' championship. */
 const FIRST_CONSTRUCTOR_SEASON = 1958;
@@ -58,6 +67,24 @@ const FIRST_CONSTRUCTOR_SEASON = 1958;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const colorFor = (constructorId) => TEAM_COLORS[constructorId] || "#e10600";
 const fullName = (d) => `${d.givenName} ${d.familyName}`;
+
+/* ---- formula1.com media ------------------------------------------------------ */
+
+const MEDIA = "https://media.formula1.com/image/upload";
+// "Andrea Kimi" + "Antonelli" -> "andant01": first three letters of each name.
+const mediaRef = (given, family) => {
+  const three = (s) => s.normalize("NFD").replace(/[^a-zA-Z]/g, "").toLowerCase().slice(0, 3);
+  return `${three(given)}${three(family)}01`;
+};
+const driverImageUrl = (slug, given, family) => {
+  if (!slug) return "";
+  const ref = mediaRef(given, family);
+  return `${MEDIA}/c_lfill,w_440/q_auto/v1740000000/common/f1/${CURRENT_YEAR}/${slug}/${ref}/${CURRENT_YEAR}${slug}${ref}right.webp`;
+};
+const teamLogoUrl = (slug) =>
+  slug
+    ? `${MEDIA}/c_lfill,w_96/q_auto/v1740000000/common/f1/${CURRENT_YEAR}/${slug}/${CURRENT_YEAR}${slug}logowhite.webp`
+    : "";
 
 /* ---- HTTP ------------------------------------------------------------------ */
 
@@ -181,6 +208,10 @@ async function fetchSeason(seasonArg) {
     name: r.raceName,
     circuit: r.Circuit.circuitName,
     circuitId: r.Circuit.circuitId,
+    // The 2020 Sakhir GP ran Bahrain's 3.543 km outer loop under the same circuitId.
+    circuitLength: /sakhir/i.test(r.raceName)
+      ? "3.543 km"
+      : circuitLengthFor(r.Circuit.circuitId, season),
     country: r.Circuit.Location.country,
     city: r.Circuit.Location.locality,
     date: new Date(`${r.date}T${r.time || "12:00:00Z"}`),
@@ -330,6 +361,38 @@ async function buildDriverCareer(driverId) {
   };
 }
 
+/** A factual career summary built only from the synced record. */
+function driverBio(d, teamName, career) {
+  const { history, worldChampionships: titles, totalRaceWins: wins, totalPodiums: podiums } = career;
+  const first = history[0];
+  const best = history.filter((h) => h.position > 0).sort((a, b) => a.position - b.position)[0];
+  const teams = [...new Set(history.map((h) => h.team).filter(Boolean))];
+  const titleYears = history.filter((h) => h.position === 1 && h.year < CURRENT_YEAR).map((h) => h.year);
+  const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
+
+  const parts = [
+    `${fullName(d)} is a ${d.nationality} driver racing${d.permanentNumber ? ` car #${d.permanentNumber}` : ""} for ${teamName} in ${CURRENT_YEAR}.`,
+  ];
+  if (first) {
+    parts.push(
+      `Formula 1 debut: ${first.year} with ${first.team}` +
+        (teams.length > 1 ? `; has since driven for ${teams.slice(1).join(", ")}.` : "."),
+    );
+  }
+  if (titles > 0) {
+    parts.push(`${plural(titles, "World Championship")} (${titleYears.join(", ")}).`);
+  }
+  if (history.length > 1 || wins || podiums) {
+    parts.push(
+      `Across ${plural(history.length, "season")}: ${plural(wins, "win")}, ${plural(podiums, "podium")} and ${career.totalPoints} points.`,
+    );
+  }
+  if (best && !titles) {
+    parts.push(`Best championship finish: P${best.position} (${best.year}).`);
+  }
+  return parts.join(" ");
+}
+
 /** Constructors' titles (decided seasons only) and first entry year. */
 async function buildTeamHistory(constructorId) {
   let worldChampionships = 0;
@@ -380,6 +443,8 @@ async function syncSeason(
         color: colorFor(c.constructorId),
         ...(meta.base && { base: meta.base }),
         ...(meta.powerUnit && { powerUnit: meta.powerUnit }),
+        ...(meta.chassis && { chassis: meta.chassis }),
+        ...(meta.mediaSlug && { logoUrl: teamLogoUrl(meta.mediaSlug) }),
         ...(principal && { teamPrincipal: principal }),
       };
       let doc;
@@ -419,6 +484,11 @@ async function syncSeason(
         nationality: d.nationality,
         dateOfBirth: d.dateOfBirth,
         team: teamId,
+        imageUrl: driverImageUrl(
+          TEAM_META[ctor.constructorId]?.mediaSlug,
+          d.givenName,
+          d.familyName,
+        ),
       };
       if (existing) await Driver.updateOne({ _id: existing._id }, { $set: fields });
       else await Driver.create(fields);
@@ -446,6 +516,8 @@ async function syncSeason(
         );
         summary.staff++;
       }
+      // People who have left a curated team (role changes happen mid-season).
+      await TeamStaff.deleteMany({ team: teamId, name: { $nin: members.map((m) => m.name) } });
     }
 
     if (prune) {
@@ -505,6 +577,30 @@ async function syncSeason(
     log(`  · R${r.round} ${r.name}: ${rr.winnerName || "?"} won`);
   }
 
+  /* -- Scheduled distance for rounds not yet run ------------------------------ */
+  // The API only reports laps once a race is classified; until then use the
+  // usual distance at that circuit (the most common winning lap count).
+  for (const r of await Race.find({ season, "results.0": { $exists: false } }).lean()) {
+    const past = await Race.find(
+      { circuitId: r.circuitId, "results.0": { $exists: true }, laps: { $gt: 0 } },
+      { laps: 1 },
+    ).lean();
+    const counts = past.reduce((m, p) => m.set(p.laps, (m.get(p.laps) || 0) + 1), new Map());
+    const typical = [...counts].sort((a, b) => b[1] - a[1] || b[0] - a[0])[0]?.[0];
+    if (typical) await Race.updateOne({ _id: r._id }, { $set: { laps: typical } });
+  }
+
+  /* -- Podium finishes this season, from the real classified results ---------- */
+  const podiumsByDriver = new Map();
+  const podiumsByTeam = new Map();
+  for (const r of await Race.find({ season }, { results: 1 }).lean()) {
+    for (const row of r.results || []) {
+      if (![1, 2, 3].includes(row.position) || !/^\d+$/.test(row.positionText || "")) continue;
+      podiumsByDriver.set(row.driver, (podiumsByDriver.get(row.driver) || 0) + 1);
+      podiumsByTeam.set(row.team, (podiumsByTeam.get(row.team) || 0) + 1);
+    }
+  }
+
   /* -- Championship tables --------------------------------------------------- */
   const standingDocs = [
     ...driverStandings.map((s, i) => ({
@@ -518,6 +614,7 @@ async function syncSeason(
       nationality: s.Driver.nationality,
       points: parseFloat(s.points) || 0,
       wins: parseInt(s.wins) || 0,
+      podiums: podiumsByDriver.get(fullName(s.Driver)) || 0,
     })),
     ...constructorStandings.map((s, i) => ({
       season,
@@ -528,6 +625,7 @@ async function syncSeason(
       nationality: s.Constructor.nationality,
       points: parseFloat(s.points) || 0,
       wins: parseInt(s.wins) || 0,
+      podiums: podiumsByTeam.get(s.Constructor.name) || 0,
     })),
   ];
   for (const s of standingDocs) {
@@ -566,6 +664,16 @@ async function syncSeason(
           champion: fullName(champ.Driver),
           championTeam: champ.Constructors.at(-1)?.name || "",
           constructorChampion: ctorChamp.Constructor.name,
+          championPoints: parseFloat(champ.points) || 0,
+          championWins: parseInt(champ.wins) || 0,
+          championPodiums: podiumsByDriver.get(fullName(champ.Driver)) || 0,
+          constructorPoints: parseFloat(ctorChamp.points) || 0,
+          runnerUp: driverStandings[1] ? fullName(driverStandings[1].Driver) : "",
+          margin:
+            Math.round(
+              ((parseFloat(champ.points) || 0) - (parseFloat(driverStandings[1]?.points) || 0)) *
+                10,
+            ) / 10,
           teamWins,
         },
       },
@@ -579,6 +687,7 @@ async function syncSeason(
     for (const s of driverStandings) {
       const d = s.Driver;
       const career = await buildDriverCareer(d.driverId);
+      career.biography = driverBio(d, s.Constructors.at(-1)?.name, career);
       await Driver.updateOne({ driverId: d.driverId }, { $set: career });
       log(
         `    ${fullName(d)}: ${career.history.length} seasons, ${career.totalRaceWins} wins, ${career.totalPodiums} podiums, ${career.worldChampionships} titles`,

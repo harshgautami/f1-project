@@ -348,6 +348,7 @@ export const standingsConfig = {
       render: (r) => <span style={{ fontWeight: 700 }}>{r.points}</span>,
     },
     { key: "wins", label: "Wins", align: "center" },
+    { key: "podiums", label: "Podiums", align: "center" },
   ],
   fields: [
     { key: "season", label: "Season", type: "number", required: true, min: 1950, max: 2100, half: true },
@@ -368,6 +369,7 @@ export const standingsConfig = {
     { key: "nationality", label: "Nationality", type: "text", half: true },
     { key: "points", label: "Points", type: "number", min: 0, half: true },
     { key: "wins", label: "Wins", type: "number", min: 0, half: true },
+    { key: "podiums", label: "Podiums", type: "number", min: 0, half: true },
   ],
   emptyForm: {
     season: STANDINGS_SEASON,
@@ -378,6 +380,7 @@ export const standingsConfig = {
     nationality: "",
     points: 0,
     wins: 0,
+    podiums: 0,
   },
 };
 
@@ -497,6 +500,7 @@ export const raceHistoryConfig = {
     },
     { key: "champion", label: "World Champion" },
     { key: "championTeam", label: "Team" },
+    { key: "championPoints", label: "Pts", align: "center" },
     { key: "constructorChampion", label: "Constructors' Champion" },
     { key: "totalRaces", label: "Races", align: "center" },
     {
@@ -510,7 +514,13 @@ export const raceHistoryConfig = {
     { key: "totalRaces", label: "Total Races", type: "number", required: true, min: 0, half: true },
     { key: "champion", label: "World Champion", type: "text", required: true, half: true },
     { key: "championTeam", label: "Champion's Team", type: "text", required: true, half: true },
-    { key: "constructorChampion", label: "Constructors' Champion", type: "text", required: true },
+    { key: "constructorChampion", label: "Constructors' Champion", type: "text", required: true, half: true },
+    { key: "constructorPoints", label: "Constructors' Points", type: "number", min: 0, half: true },
+    { key: "championPoints", label: "Champion Points", type: "number", min: 0, half: true },
+    { key: "championWins", label: "Champion Wins", type: "number", min: 0, half: true },
+    { key: "championPodiums", label: "Champion Podiums", type: "number", min: 0, half: true },
+    { key: "runnerUp", label: "Runner-up", type: "text", half: true },
+    { key: "margin", label: "Title Margin (pts)", type: "number", min: 0, half: true },
     {
       key: "teamWins",
       label: "Race wins by team",
@@ -531,6 +541,12 @@ export const raceHistoryConfig = {
     champion: "",
     championTeam: "",
     constructorChampion: "",
+    constructorPoints: "",
+    championPoints: "",
+    championWins: "",
+    championPodiums: "",
+    runnerUp: "",
+    margin: "",
     teamWins: [],
   },
 };

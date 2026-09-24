@@ -10,8 +10,8 @@ export const STANDINGS_SEASON = 2026; // current championship
 export const CALENDAR_ROUNDS = 24;
 
 // Every season with data in the DB, newest first: the backend keeps the last
-// 13 seasons plus the current one (HISTORY_YEARS in backend/scripts/sync.js).
-const FIRST_SEASON = 2013;
+// 15 seasons plus the current one (HISTORY_YEARS in backend/scripts/sync.js).
+const FIRST_SEASON = 2011;
 const LATEST_SEASON = 2026;
 export const SEASONS = Array.from(
   { length: LATEST_SEASON - FIRST_SEASON + 1 },

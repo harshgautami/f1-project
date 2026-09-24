@@ -7,11 +7,10 @@ import {
   useLocation,
 } from "react-router-dom";
 import { AuthProvider, useAuth } from "./context/AuthContext";
-import { AnimatePresence } from "./components/motion";
 import { ROUTE_LOADERS, warmRoutes } from "./routes";
 import { warmData } from "./data/loaders";
 import Navbar from "./components/Navbar";
-import RaceLaunch from "./components/RaceLaunch";
+import ChequeredWipe from "./components/ChequeredWipe";
 import FXBackground from "./components/FXBackground";
 import { Loader } from "./components/ui";
 
@@ -110,6 +109,13 @@ function AppShell() {
   const { pathname } = useLocation();
   const onAuth = pathname === "/login" || pathname === "/register";
 
+  // The wipe outlives `launching`: it keeps playing while the page it covers mounts.
+  const [wiping, setWiping] = React.useState(false);
+  React.useEffect(() => {
+    if (launching) setWiping(true);
+  }, [launching]);
+  const endWipe = React.useCallback(() => setWiping(false), []);
+
   // Warm the home-page chunk while the cinematic plays so the wipe reveals a
   // rendered dashboard, not a loading spinner. (The page itself still mounts
   // only after the overlay clears — see ProtectedRoute.)
@@ -146,10 +152,10 @@ function AppShell() {
           <AppRoutes />
         </div>
       </div>
-      {/* Post-login cinematic: lights out → driver's-POV launch down the grid. */}
-      <AnimatePresence>
-        {launching && <RaceLaunch key="launch" onComplete={endLaunch} />}
-      </AnimatePresence>
+      {/* Post-login cinematic: a chequered flag sweeps right → left. The page
+          mounts (endLaunch) once the flag covers the screen, and the flag's
+          trailing edge then wipes it into view. */}
+      {wiping && <ChequeredWipe onCovered={endLaunch} onDone={endWipe} />}
     </>
   );
 }
