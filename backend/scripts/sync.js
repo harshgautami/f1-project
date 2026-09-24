@@ -180,6 +180,17 @@ async function fetchRaceResults(season, round) {
   };
 }
 
+/** driverIds classified in the season's latest run round (null if none yet). */
+async function fetchGridDriverIds(season, races) {
+  const run = races.filter((r) => r.status === "completed").sort((a, b) => b.round - a.round);
+  for (const r of run) {
+    const data = await get(`${season}/${r.round}/results.json?limit=100`);
+    const results = data.MRData.RaceTable.Races[0]?.Results;
+    if (results?.length) return new Set(results.map((x) => x.Driver.driverId));
+  }
+  return null;
+}
+
 /** A season's constructors, calendar and both championship tables. */
 async function fetchSeason(seasonArg) {
   const seg = !seasonArg || seasonArg === "current" ? "current" : String(seasonArg);
@@ -425,6 +436,13 @@ async function syncSeason(
   const isCurrent = season === CURRENT_YEAR;
   const summary = { season, teams: 0, drivers: 0, races: races.length, results: 0, standings: 0, staff: 0, pruned: {} };
 
+  // The current grid = who started the latest Grand Prix (falls back to the
+  // whole standings table before round 1 has been run).
+  const onGrid = isCurrent ? await fetchGridDriverIds(season, races) : null;
+  const gridStandings = onGrid
+    ? driverStandings.filter((s) => onGrid.has(s.Driver.driverId))
+    : driverStandings;
+
   /* -- Current grid: teams, drivers, staff --------------------------------- */
   const teamIdByCtor = {};
   const teamIdByName = {};
@@ -463,10 +481,11 @@ async function syncSeason(
       summary.teams++;
     }
 
-    // Drivers — from the standings table (everyone who has raced this season).
+    // Drivers — from the standings table, limited to the current grid (a driver
+    // dropped mid-season keeps their points but loses their seat).
     // A mid-season move lists several constructors; the last one is current.
     const driverIds = [];
-    for (const s of driverStandings) {
+    for (const s of gridStandings) {
       const d = s.Driver;
       const ctor = s.Constructors.at(-1);
       const teamId = ctor && teamIdByCtor[ctor.constructorId];
@@ -493,6 +512,11 @@ async function syncSeason(
       if (existing) await Driver.updateOne({ _id: existing._id }, { $set: fields });
       else await Driver.create(fields);
       summary.drivers++;
+    }
+    // Synced drivers who have lost their seat (admin-added drivers carry no
+    // driverId and are left alone).
+    if (onGrid) {
+      await Driver.deleteMany({ driverId: { $exists: true, $nin: driverIds } });
     }
 
     // Team staff (curated) keyed by API constructor name.
@@ -683,8 +707,8 @@ async function syncSeason(
 
   /* -- Careers + titles (current grid only) ---------------------------------- */
   if (isCurrent && careers) {
-    log(`  · building ${driverStandings.length} driver careers from real results…`);
-    for (const s of driverStandings) {
+    log(`  · building ${gridStandings.length} driver careers from real results…`);
+    for (const s of gridStandings) {
       const d = s.Driver;
       const career = await buildDriverCareer(d.driverId);
       career.biography = driverBio(d, s.Constructors.at(-1)?.name, career);

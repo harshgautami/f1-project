@@ -77,12 +77,17 @@ async function verifyRoster() {
   );
   check("career totals are consistent with season history", badTotals.length === 0, badTotals.map((d) => d.lastName).join(", "));
 
-  // The current championship table is the authority on who's on the grid.
-  const table = await Standing.find({ season: CURRENT_YEAR, type: "driver" }).lean();
+  // The grid is whoever started the latest Grand Prix; a driver dropped
+  // mid-season stays in the championship table but not on the roster.
+  const latest = await Race.findOne({ season: CURRENT_YEAR, "results.0": { $exists: true } })
+    .sort({ round: -1 })
+    .lean();
+  const gridNames = new Set((latest?.results || []).map((r) => r.driver));
+  const offGrid = drivers.filter((d) => !gridNames.has(`${d.firstName} ${d.lastName}`));
   check(
-    `driver count matches the ${CURRENT_YEAR} championship table`,
-    table.length > 0 && drivers.length === table.length,
-    `${drivers.length} drivers vs ${table.length} classified`,
+    `roster matches the grid of the latest ${CURRENT_YEAR} round`,
+    latest && drivers.length === gridNames.size && offGrid.length === 0,
+    `${drivers.length} drivers vs ${gridNames.size} on the R${latest?.round} grid${offGrid.length ? `; off grid: ${offGrid.map((d) => d.lastName).join(", ")}` : ""}`,
   );
   const ctorTable = await Standing.find({ season: CURRENT_YEAR, type: "constructor" }).lean();
   check(
